@@ -1,0 +1,61 @@
+# Post-Live Watch — single editable thresholds file.
+# Every rule in app/rules/detectors.py reads its numbers from here.
+# Nothing here is a magic number buried in code.
+
+not_posted_grace_days: 1          # days past the promised date before "Not posted" fires
+posted_late_hours: 6              # hours past the promised datetime before "Posted late" fires
+
+underperform_pct_of_promise: 0.7      # reach must fall below this fraction of the promised min_reach
+underperform_pct_of_creator_avg: 0.6  # AND below this fraction of the creator's own average reach
+
+engagement_ratio_min: 0.015       # comments/likes ratio below this is suspicious (bought likes)
+engagement_ratio_max: 0.25        # comments/likes ratio above this is suspicious (comment-pod/bot pattern)
+engagement_spike_multiplier: 4.0  # day-over-day like growth beyond this multiple is suspicious
+
+sentiment_negative_keyword_count: 3    # raw count of negative-keyword comments to trigger
+sentiment_negative_ratio: 0.2          # OR this fraction of all comments on the post
+
+story_proof_window_hours: 24      # a Story must have a screenshot/insights upload within this window
+
+competitor_window_days: 3         # a competitor mention within this many days of the post counts as conflict
+
+viral_multiplier: 2.2             # reach/engagement this many times creator average = viral winner
+
+# severity points per rule, and the cutoffs that turn a post's max severity into a status chip
+rule_severity:
+  1: 9    # Not posted
+  2: 5    # Posted late
+  3: 8    # Missing disclosure
+  4: 6    # Missing/wrong brand tag, link or hashtag
+  5: 6    # Underperforming
+  6: 5    # Suspicious engagement
+  7: 7    # Negative sentiment spike
+  8: 9    # Deleted or archived early
+  9: 8    # Caption edited post-approval / off-brief claim
+  10: 5   # Story expired without proof
+  11: 7   # Competitor post
+  12: 2   # Viral winner (positive — flagged for action, not punishment)
+
+severity_cutoffs:
+  act_now: 7      # max severity >= this => "Act now"
+  needs_look: 4   # max severity >= this (and < act_now) => "Needs a look"
+  # below needs_look => "OK"
+
+negative_keywords:
+  - rash
+  - allergy
+  - fake
+  - scam
+  - "paid lie"
+  - waste
+  - jhooth
+  - bekar
+  - dhoka
+  - faltu
+  - "paisa barbad"
+
+competitor_keywords:
+  - dewcell
+  - "@dewcell"
+  - "#dewcell"
+  - "#dewcellglow"
