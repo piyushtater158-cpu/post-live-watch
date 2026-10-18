@@ -41,6 +41,7 @@ def evaluate_post(conn: sqlite3.Connection, post_id: int, current_day: int, thre
 
     return {
         "post_id": post_id,
+        "creator_id": ctx.creator_id,
         "creator_handle": ctx.creator_handle,
         "format": ctx.format,
         "status": status,

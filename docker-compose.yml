@@ -1,0 +1,18 @@
+services:
+  postlivewatch:
+    build: .
+    container_name: postlivewatch
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8420:8000"   # point your reverse proxy (Caddy/nginx/Cloudflare Tunnel) at this port
+    # If this needs to reach your existing n8n instance by name (e.g. for the optional
+    # daily-report trigger calling back in, or vice versa), join n8n's docker network here:
+    # networks:
+    #   - n8n_default
+# networks:
+#   n8n_default:
+#     external: true

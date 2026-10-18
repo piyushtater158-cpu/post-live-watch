@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}@{{ creator.handle }} — Post-Live Watch{% endblock %}
+{% block content %}
+<h1>@{{ creator.handle }} <span class="muted">({{ creator.tier }} · {{ creator.niche }})</span></h1>
+
+<div class="kpi-row">
+    <div class="kpi"><div class="kpi-value">{{ reliability.score }}/100</div><div class="kpi-label">Reliability score</div></div>
+    <div class="kpi"><div class="kpi-value">{{ (reliability.on_time_rate * 100) | round | int }}%</div><div class="kpi-label">Delivered on time</div></div>
+    <div class="kpi"><div class="kpi-value">{{ reliability.avg_performance_ratio }}x</div><div class="kpi-label">Avg performance vs. promise</div></div>
+    <div class="kpi"><div class="kpi-value">{{ reliability.avg_flags_per_campaign }}</div><div class="kpi-label">Avg flags / campaign</div></div>
+</div>
+
+<p class="book-again">{{ reliability.book_again_hint }}</p>
+
+{% if current_campaign %}
+<h2>Current campaign (GlowLeaf launch)</h2>
+<p><span class="chip chip-{{ current_campaign.status | lower | replace(' ', '-') }}">{{ current_campaign.status }}</span> — {{ current_campaign.reason }}</p>
+{% endif %}
+
+<h2>12-month rolling history</h2>
+<table class="post-table">
+    <thead><tr><th>Month</th><th>Campaign</th><th>On time?</th><th>Performance</th><th>Flags</th><th>Fix speed (days)</th><th>Competitor conflict</th><th>Outcome</th></tr></thead>
+    <tbody>
+    {% for h in reliability.history %}
+        <tr>
+            <td>{{ h.month }}</td>
+            <td>{{ h.campaign_name }}</td>
+            <td>{{ "Yes" if h.delivered_on_time else "No" }}</td>
+            <td>{{ h.performance_ratio }}x</td>
+            <td>{{ h.flags_count }}</td>
+            <td>{{ h.fix_speed_days if h.fix_speed_days is not none else "—" }}</td>
+            <td>{{ "Yes" if h.competitor_conflict else "No" }}</td>
+            <td>{{ h.outcome }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

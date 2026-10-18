@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Creators — Post-Live Watch{% endblock %}
+{% block content %}
+<h1>Creators</h1>
+<table class="post-table">
+    <thead><tr><th>Handle</th><th>Tier</th><th>Niche</th></tr></thead>
+    <tbody>
+    {% for c in creators %}
+        <tr>
+            <td><a href="/creators/{{ c.id }}">{{ c.handle }}</a></td>
+            <td>{{ c.tier }}</td>
+            <td>{{ c.niche }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

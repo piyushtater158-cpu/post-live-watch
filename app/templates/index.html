@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Overview — Post-Live Watch{% endblock %}
+{% block content %}
+<h1>GlowLeaf Vitamin C Serum Launch — Campaign Overview</h1>
+
+<div class="kpi-row">
+    <div class="kpi"><div class="kpi-value">{{ posts_live }}/{{ total_due }}</div><div class="kpi-label">Posts live vs. due</div></div>
+    <div class="kpi"><div class="kpi-value">{{ "{:,}".format(total_reach) }} / {{ "{:,}".format(total_promised) }}</div><div class="kpi-label">Total reach vs. promised</div></div>
+    <div class="kpi act-now"><div class="kpi-value">{{ by_status["Act now"] }}</div><div class="kpi-label">Act now</div></div>
+    <div class="kpi needs-look"><div class="kpi-value">{{ by_status["Needs a look"] }}</div><div class="kpi-label">Needs a look</div></div>
+    <div class="kpi ok"><div class="kpi-value">{{ by_status["OK"] }}</div><div class="kpi-label">OK</div></div>
+    <div class="kpi opportunity"><div class="kpi-value">{{ opportunities }}</div><div class="kpi-label">Opportunities (viral)</div></div>
+</div>
+
+<table class="post-table" id="post-table">
+    <thead>
+        <tr>
+            <th>Creator</th><th>Format</th><th>Status</th><th>Severity</th><th>Reason</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr class="row-{{ r.status | lower | replace(' ', '-') }}">
+            <td><a href="/creators/{{ r.creator_id }}">{{ r.creator_handle }}</a></td>
+            <td>{{ r.format }}</td>
+            <td><span class="chip chip-{{ r.status | lower | replace(' ', '-') }}">{{ r.status }}</span></td>
+            <td>{{ r.max_severity }}</td>
+            <td>{{ r.reason }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

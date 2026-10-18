@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Brand Report — Post-Live Watch{% endblock %}
+{% block content %}
+<h1>GlowLeaf — Daily Report <span class="muted">(read-only, brand view)</span></h1>
+<div class="report-box">
+    <pre>{{ text }}</pre>
+</div>
+
+<h2>Highlights</h2>
+<ul>
+    {% for h in highlights %}<li>{{ h }}</li>{% else %}<li class="muted">None yet.</li>{% endfor %}
+</ul>
+
+<h2>Issues being worked</h2>
+<ul>
+    {% for i in issues %}<li>{{ i }}</li>{% else %}<li class="muted">None.</li>{% endfor %}
+</ul>
+{% endblock %}
