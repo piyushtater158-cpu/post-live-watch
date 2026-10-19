@@ -55,36 +55,71 @@ source .venv/Scripts/activate   # Windows Git Bash; use .venv/bin/activate on Li
 pip install -r requirements.txt
 
 python scripts/seed.py --reset   # generates data/postlivewatch.db
-pytest -v                        # 13/13 should pass — the correctness proof
+pytest -v                        # all 37 should pass — the correctness proof
 
 cp .env.example .env              # optional: add OPENROUTER_API_KEY to enable AI
 uvicorn app.main:app --reload --port 8420
 ```
 
-Open `http://127.0.0.1:8420/`. Use the **Advance day ▶** control in the top nav to replay the 7-day campaign and watch flags appear over time (exactly what the day-simulator is for). Hit `/api/debug` directly for the full computed state as JSON — the same proof-of-correctness surface the tests check against.
+The React frontend runs separately and forwards `/api` to that uvicorn server:
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173
+```
+
+Open `http://localhost:5173/` (React app) or `http://localhost:8420/` (the server-rendered Jinja2 + HTMX version of the same screens). Use the **Advance day ▶** control in the top nav to replay the 7-day campaign and watch flags appear over time (exactly what the day-simulator is for). Hit `/api/debug` directly for the full computed state as JSON — the same proof-of-correctness surface the tests check against.
 
 Screens: Campaign Overview (`/`) · Flag Queue (`/queue`) · Creator Profiles (`/creators`) · Brand Daily Report (`/report`, read-only) · Decision Log (`/decisions`).
 
 **AI on/off**: the pill button in the nav toggles `app_state.ai_enabled` in the DB. With no `OPENROUTER_API_KEY` set, every AI task function (`app/ai/provider.py`) falls back to its template/keyword counterpart automatically — nothing breaks.
 
-## Frontend status
+## Frontend
 
-The current templates (`app/templates/*.html`) are functional but minimally styled — built to prove the engine and the full user flow (approve/edit/dismiss, day simulator, AI toggle, decision log) work end-to-end first. The real visual design is handed off separately per screen; see `docs/designs/frontend-brief.md` for the exact content/data contract each screen needs. See also `docs/designs/*-design-*.md` for the original build decisions (stack, hosting, rules-vs-AI split) from the planning session.
+There are two frontends for the same screens. Both read the same data from `app/dashboard.py`, so they can't disagree.
 
-## Deploying (Oracle Cloud VM, alongside an existing n8n instance)
+- **`frontend/`**: the deployed one. React + TypeScript (Vite + React Router), styled with the Claude Design stylesheet (`app/static/app.css`, copied as-is). It talks only to the JSON API in `app/api.py`.
+- **`app/templates/`**: the original server-rendered Jinja2 + HTMX pages, still served by FastAPI at the API's own URL.
+
+See `docs/designs/frontend-brief.md` for the content and data contract of each screen.
+
+JSON API (all under `/api`):
+
+- `GET`: `state`, `overview`, `queue`, `creators`, `creators/{id}`, `report`, `decisions`, `debug`.
+- `POST`: `flags/{post_id}/decide` (JSON body: `action`, `message_text`, `original_message`, `flag_rule_id`), `simulate/advance-day`, `simulate/reset-day`, `settings/ai-toggle`.
+- `GET /healthz` returns `{"ok": true}`.
+
+## Deploying ($0: Render + Vercel + GitHub Actions)
+
+```
+Browser ──> Vercel (frontend/, static React build)
+              └─ rewrite /api/* ──> Render free web service (Dockerfile: FastAPI + SQLite)
+GitHub Actions keep-alive ──(every 10 min)──> Render /healthz
+```
+
+- **API on Render**, defined in `render.yaml`: Docker runtime, `free` plan, health check on `/healthz`, auto-deploys on pushes to `main`.
+  - One-time setup: Render dashboard → **New → Blueprint** → pick this repo → paste `OPENROUTER_API_KEY` (optional; the app runs on template fallbacks without it).
+  - The service URL is `https://post-live-watch.onrender.com`.
+- **Frontend on Vercel**: project root is `frontend/`, and pushes to `main` auto-deploy. `frontend/vercel.json` rewrites `/api/*` to the Render URL, so the browser only ever sees one origin (no CORS), and sends every other path to `index.html` for client-side routing.
+- **Keep-alive**: Render's free plan sleeps a service after 15 idle minutes and wipes its filesystem (including the SQLite DB) when it does. `.github/workflows/keepalive.yml` pings `/healthz` every 10 minutes to prevent that. One always-on service fits in the 750 free instance-hours a month.
+  - A redeploy still re-seeds the demo data back to day 1. That's acceptable because all data is synthetic.
+  - GitHub pauses scheduled workflows after 60 days with no repo activity. Re-enable it from the Actions tab.
+  - If the ping is ever delayed and Render is waking up, the frontend shows a "Waking up the server…" banner.
+- **CI**: `.github/workflows/ci.yml` runs `pytest` and the frontend build on every push and PR.
+
+### Self-hosted alternative (any VM with Docker)
 
 ```bash
 cp .env.example .env    # fill in OPENROUTER_API_KEY if you have one
 docker compose up -d --build
 ```
 
-This runs the app in a container with a persistent `./data` volume (so the SQLite DB, decision log, and day-simulator state survive restarts — the seed script only runs if `data/postlivewatch.db` doesn't exist yet). Point your existing reverse proxy (Caddy/nginx/Cloudflare Tunnel) at port `8420`. See `docker-compose.yml` for joining your n8n instance's Docker network if you wire up the optional report-delivery workflow below.
-
-To update after a `git pull`: `docker compose up -d --build` again.
+This runs the API and the server-rendered screens with a persistent `./data` volume, so the SQLite DB, decision log, and day-simulator state survive restarts. The seed script only runs if `data/postlivewatch.db` doesn't exist yet. Point a reverse proxy (Caddy, nginx or Cloudflare Tunnel) at port `8420`. To update after a `git pull`, run `docker compose up -d --build` again.
 
 ## Optional: n8n daily brand-report trigger
 
-Not built by default (explicitly optional in the brief, and kept out of the critical path — see the design doc's reasoning on why n8n stays out of the rules/scoring pipeline entirely). If you want it: a scheduled n8n workflow hitting `GET /report` (or a future `GET /api/brand-report` JSON endpoint) and delivering the result via email/Slack/webhook.
+Not built by default (explicitly optional in the brief, and kept out of the critical path — see the design doc's reasoning on why n8n stays out of the rules/scoring pipeline entirely). If you want it: a scheduled n8n workflow hitting `GET /report` (HTML) or `GET /api/report` (JSON) and delivering the result via email/Slack/webhook.
 
 ## Out of scope
 
@@ -98,10 +133,15 @@ app/
   ai/             # single OpenRouter-calling function + template fallbacks
   reliability.py  # transparent weighted reliability-score formula
   dashboard.py    # aggregation layer between the engine and the screens
-  main.py         # FastAPI routes
-  templates/      # Jinja2 + HTMX (functional, pending design handoff)
-config/thresholds.yaml   # every rule threshold, severity, and status cutoff — editable
-scripts/seed.py           # synthetic GlowLeaf campaign + 20 creators + 6mo history
-tests/                     # pytest suite verifying all 12 rules fire correctly
+  actions.py      # decisions + day simulator, shared by both route sets
+  api.py          # JSON API under /api (used by frontend/)
+  main.py         # FastAPI app: HTML routes, /healthz, mounts the API
+  templates/      # Jinja2 + HTMX server-rendered screens
+frontend/                  # React + TS single-page app, deployed on Vercel
+config/thresholds.yaml     # every rule threshold, severity, and status cutoff — editable
+scripts/seed.py            # synthetic GlowLeaf campaign + 20 creators + 6mo history
+tests/                     # pytest: all 12 rules, contracts, AI fallback, JSON API
+render.yaml                # Render Blueprint (free Docker web service)
+.github/workflows/         # CI + keep-alive ping
 docs/designs/              # office-hours design doc + frontend brief
 ```

@@ -20,38 +20,47 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
-# Columns added to `deliverables` after the initial schema shipped. schema.sql
-# uses CREATE TABLE IF NOT EXISTS, so an existing DB (e.g. the persisted Docker
+# Columns added to a table after the initial schema shipped. schema.sql uses
+# CREATE TABLE IF NOT EXISTS, so an existing DB (e.g. the persisted Docker
 # volume) would never pick these up without this guarded migration — it reads
-# the live column list and ALTERs in only what's missing. Idempotent, no
-# version table; safe to call on every startup.
-_DELIVERABLE_MIGRATIONS: list[str] = [
-    "required_disclosure TEXT",
-    "required_tag TEXT",
-    "required_hashtag TEXT",
-    "requires_link_sticker INTEGER",
-    "deal_type TEXT NOT NULL DEFAULT 'paid'",
-    "barter_value REAL",
-    "bonus_threshold INTEGER",
-    "bonus_amount REAL",
-    "waived_notes TEXT",
-]
+# the live column list per table and ALTERs in only what's missing. Idempotent,
+# no version table; safe to call on every startup.
+_TABLE_MIGRATIONS: dict[str, list[str]] = {
+    "deliverables": [
+        "required_disclosure TEXT",
+        "required_tag TEXT",
+        "required_hashtag TEXT",
+        "requires_link_sticker INTEGER",
+        "deal_type TEXT NOT NULL DEFAULT 'paid'",
+        "barter_value REAL",
+        "bonus_threshold INTEGER",
+        "bonus_amount REAL",
+        "waived_notes TEXT",
+    ],
+    "creators": [
+        "metrics_source TEXT",
+    ],
+    "decisions": [
+        "source TEXT",
+    ],
+}
 
 
-def _migrate_deliverables(conn: sqlite3.Connection) -> None:
-    existing = {row["name"] for row in conn.execute("PRAGMA table_info(deliverables)")}
-    for column_def in _DELIVERABLE_MIGRATIONS:
+def _migrate_table(conn: sqlite3.Connection, table: str, column_defs: list[str]) -> None:
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    for column_def in column_defs:
         name = column_def.split()[0]
         if name not in existing:
-            conn.execute(f"ALTER TABLE deliverables ADD COLUMN {column_def}")
-    conn.commit()
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def}")
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
     conn.commit()
-    _migrate_deliverables(conn)
+    for table, column_defs in _TABLE_MIGRATIONS.items():
+        _migrate_table(conn, table, column_defs)
+    conn.commit()
 
 
 def get_state(conn: sqlite3.Connection, key: str, default: str | None = None) -> str | None:

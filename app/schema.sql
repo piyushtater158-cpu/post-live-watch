@@ -31,7 +31,10 @@ CREATE TABLE IF NOT EXISTS creators (
     tier TEXT NOT NULL,              -- 'mid' | 'micro'
     niche TEXT NOT NULL,
     avg_reach REAL NOT NULL,
-    avg_engagement_rate REAL NOT NULL
+    avg_engagement_rate REAL NOT NULL,
+    metrics_source TEXT              -- NULL = seeded/measured; 'estimated' = app/intake.py's
+                                      -- follower-count estimate, never AI-invented; 'am_entered' =
+                                      -- an AM typed a real number over the estimate at intake.
 );
 
 CREATE TABLE IF NOT EXISTS deliverables (
@@ -128,7 +131,10 @@ CREATE TABLE IF NOT EXISTS decisions (
     post_id INTEGER NOT NULL REFERENCES posts(id),
     action TEXT NOT NULL,             -- 'approve' | 'edit' | 'dismiss'
     message_text TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    source TEXT                       -- NULL/'flag' = acted on a flag (existing); 'intake' = this
+                                       -- row is an audit record of a deal-intake confirmation,
+                                       -- message_text holds the raw brief text
 );
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_post ON post_snapshots(post_id, day_number);

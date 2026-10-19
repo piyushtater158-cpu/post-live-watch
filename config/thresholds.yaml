@@ -59,3 +59,20 @@ competitor_keywords:
   - "@dewcell"
   - "#dewcell"
   - "#dewcellglow"
+
+# Deal intake (app/intake.py): numbers used to estimate a brand-new creator's
+# avg_reach/avg_engagement_rate from their follower count when no measured
+# average exists yet. Calibrated off the actual seeded roster (scripts/seed.py) —
+# mid-tier creators there run ~0.24-0.30 reach/follower, micro ~0.30-0.35.
+# AI is never allowed to invent this number (see app/ai/provider.py:parse_deal_brief) —
+# it only ever comes from this config, so it's reproducible and tunable like
+# every other number in this file.
+intake:
+  mid_tier_follower_floor: 100000      # followers >= this -> 'mid' tier, below -> 'micro'
+  estimated_reach_rate:
+    mid: 0.28
+    micro: 0.33
+  estimated_engagement_rate:
+    mid: 0.045
+    micro: 0.060
+  max_deliverables_per_brief: 10       # a garbled parse must not insert hundreds of rows

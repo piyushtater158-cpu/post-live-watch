@@ -55,8 +55,8 @@ This is the most important point to explain well.
 
 The request path, from top to bottom:
 
-1. **Browser** — Jinja2 templates with HTMX for the interactive parts.
-2. **`app/main.py`** — FastAPI routes.
+1. **Browser** — the React single-page app in `frontend/` (served by Vercel), or the Jinja2 + HTMX pages served directly by FastAPI. Both show the same screens.
+2. **`app/api.py`** (JSON, under `/api`) and **`app/main.py`** (HTML pages) — FastAPI routes. Both call the same helpers in **`app/actions.py`** for decisions and the day simulator, so the two surfaces can't drift apart.
 3. **`app/dashboard.py`** — combines data for each screen.
 4. **`app/rules/engine.py`** — runs all 12 detectors on each post and computes the status.
 5. **`app/rules/context.py`** — loads one post's data as of the current simulated day.
@@ -64,9 +64,20 @@ The request path, from top to bottom:
 7. **`app/ai/provider.py`** — the single OpenRouter call, with fallback to `app/ai/templates.py`.
 8. **SQLite** — raw `sqlite3`, no ORM.
 
-**Stack:** FastAPI, Jinja2 + HTMX, SQLite, OpenRouter. Deployed with Docker (`docker compose up -d --build`) on an Oracle Cloud VM, with a persistent `./data` volume.
+**Stack:** FastAPI, SQLite, OpenRouter on the backend; React + TypeScript (Vite) on the frontend; the original Jinja2 + HTMX pages are still served by FastAPI.
+
+**Deployment ($0):**
+
+- **API on Render's free plan**, built from the `Dockerfile` using the `render.yaml` Blueprint.
+- **Frontend on Vercel.** `frontend/vercel.json` forwards `/api/*` to Render, so the browser only ever talks to one origin and the backend needs no CORS setup.
+- **Keep-alive ping.** Render's free plan sleeps after 15 idle minutes and wipes the filesystem, including the SQLite file, when it does. A GitHub Actions job (`.github/workflows/keepalive.yml`) pings `/healthz` every 10 minutes to keep it awake. One always-on service fits inside the 750 free hours a month.
+- **Self-hosted fallback.** `docker compose up -d --build` still works on any VM with a persistent `./data` volume.
 
 **Screens:** Campaign Overview (`/`), Flag Queue (`/queue`), Creator Profiles (`/creators`), Brand Daily Report (`/report`), Decision Log (`/decisions`), and the raw engine output at `/api/debug`.
+
+> **Likely question:** "Your data lives in SQLite on a free host with an ephemeral disk. Isn't that fragile?"
+>
+> Yes, deliberately. All the data is synthetic and re-seeded from `scripts/seed.py`, so losing it only resets the demo to day 1, which the Reset button already does. The keep-alive stops idle restarts from wiping it, so only a redeploy resets it. For real customer data I'd move to managed Postgres; the rest of the app wouldn't change, because all SQL sits behind `app/db.py`, `app/actions.py` and the dashboard layer.
 
 > **Likely question:** "Why SQLite and not Postgres?"
 >
@@ -80,9 +91,9 @@ The request path, from top to bottom:
 >
 > The data model is small, and plain SQL keeps it transparent and easy to inspect.
 
-> **Likely question:** "Why HTMX instead of React?"
+> **Likely question:** "Why is there both HTMX and React?"
 >
-> Server-rendered pages with small HTMX updates avoid building a separate API, a JS build pipeline, and CORS. The time budget went to the rules engine, which is what the role asks for.
+> The first version was server-rendered with HTMX, so the time went to the rules engine instead of an API, a JS build and CORS. Once the engine was proven, the frontend moved to a React app on Vercel so it could be deployed and scaled separately from the API. The JSON API returns exactly the dicts the templates already rendered, so the move was mechanical. Vercel's rewrite to Render means no CORS. The HTMX pages stay as a fallback and are covered by the same tests.
 
 ---
 
@@ -191,13 +202,13 @@ It combines 6 months of history with the current campaign.
 
 ## 9. Approval flow and audit trail
 
-`POST /flags/{post_id}/decide` handles three actions:
+`POST /api/flags/{post_id}/decide` (JSON, used by the React app) and `POST /flags/{post_id}/decide` (form post, used by the HTMX page) both call `record_decision` in `app/actions.py`. It handles three actions:
 
 - **Approve** — stores the suggested message exactly as written.
 - **Edit** — stores what the manager typed.
 - **Dismiss** — stores no message.
 
-Each decision is saved with a UTC timestamp, and the queue refreshes through HTMX. `/decisions` shows the full log.
+Each decision is saved with a UTC timestamp, and the endpoint returns the refreshed queue, which the React app re-renders (or HTMX swaps in). `/decisions` shows the full log.
 
 > **Likely question:** "Why log decisions?"
 >
@@ -211,11 +222,13 @@ Each decision is saved with a UTC timestamp, and the queue refreshes through HTM
 
 ## 10. Testing
 
-There are 13 `pytest` tests.
+There are 37 `pytest` tests, and CI (`.github/workflows/ci.yml`) runs them plus the frontend build on every push.
 
 - `tests/test_rules.py` maps each problem post to its expected rule. It checks that all 12 rules fire, that the 8 healthy posts stay clean, that the viral winner is not hidden, that the grace period and the 24-hour window are respected, and that severity ordering is correct.
 - `tests/test_reliability.py` checks the reliability score.
 - `tests/test_ai_fallback.py` checks that every AI function still returns usable text when AI is off.
+- `tests/test_contract.py` checks that negotiated deal terms override the campaign brief.
+- `tests/test_api.py` checks every JSON endpoint the React app uses, the simulator controls, and the full approve / edit / dismiss flow, including approving a viral-winner card that has no problem flags.
 
 `/api/debug` returns the full computed state as JSON, so a reviewer can check the engine without clicking through screens.
 
@@ -231,8 +244,8 @@ Interviewers often probe here. Admitting a weak spot clearly and explaining the 
 
 1. **Disclosure is hardcoded.** Rule 3 checks for `#ad` and "paid partnership" directly in code. The campaign's `required_disclosure` is used only in the message text. That contradicts "nothing hardcoded". *Fix:* read the accepted labels from the campaign or the YAML.
 2. **Reliability weights live in Python, not in `thresholds.yaml`.** Again, not fully "one config file". *Fix:* move them into the YAML.
-3. **Single campaign only.** `campaign_id=1` and `duration_days=7` are hardcoded in `main.py` and `dashboard.py`. *Fix:* read them from the campaign row and add a campaign selector.
-4. **Flag evidence is saved as Python text, not JSON.** `str(match["evidence"])` in `main.py` writes Python's own text format, which is not valid JSON, although the schema says JSON. *Fix:* use `json.dumps`.
+3. **Single campaign only.** `campaign_id=1` and `duration_days=7` are hardcoded in `app/actions.py`, `app/api.py` and `dashboard.py`. *Fix:* read them from the campaign row and add a campaign selector.
+4. **Flag evidence is saved as Python text, not JSON.** `str(match["evidence"])` in `app/actions.py` writes Python's own text format, which is not valid JSON, although the schema says JSON. *Fix:* use `json.dumps`.
 5. **Performance.** AI calls are synchronous, one per flag, inside the page request, each with a 15-second timeout, and nothing is cached. A slow provider makes the queue page slow. The engine also runs several times per request, with many small queries. *Fix:* cache AI output per flag and day, generate it in the background, and batch the queries.
 6. **One post per creator** is assumed (`fetchone()` in the reliability and dashboard code). *Fix:* aggregate over all of a creator's posts.
 7. **No authentication or CSRF protection.** Explicitly out of scope for the brief, but worth saying you know it is needed.
@@ -247,8 +260,8 @@ Interviewers often probe here. Admitting a weak spot clearly and explaining the 
 
 ## 12. How to demo it
 
-1. Run `pytest -v` and show 13 of 13 passing.
-2. Open `/` on day 1 and press **Advance day** a few times. New flags appear.
+1. Run `pytest -v` and show all 37 passing.
+2. Open [post-live-watch.vercel.app](https://post-live-watch.vercel.app) (or `/` locally) on day 1 and press **Advance day** a few times. New flags appear.
 3. Open `/queue`, approve one message, edit another, then show `/decisions`.
 4. Toggle AI off and show the app still works with template text.
 5. Open `/api/debug` to show the raw engine output.
