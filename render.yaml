@@ -1,0 +1,25 @@
+# Render Blueprint — the FastAPI API (and the server-rendered Jinja2 screens) on the
+# free plan. Free web services have an ephemeral filesystem: the SQLite DB is
+# re-seeded on every deploy/restart. .github/workflows/keepalive.yml pings
+# /healthz so the service doesn't idle out (and wipe state) between visits.
+services:
+  - type: web
+    name: post-live-watch
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    buildFilter:
+      ignoredPaths:
+        - frontend/**
+        - docs/**
+        - "**/*.md"
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-4o-mini

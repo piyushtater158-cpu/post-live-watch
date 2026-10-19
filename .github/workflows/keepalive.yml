@@ -1,0 +1,19 @@
+# Render's free plan sleeps a web service after 15 idle minutes and wipes its
+# filesystem (the SQLite DB) when it does. Pinging every 10 minutes keeps it
+# awake; one always-on free service fits inside the 750 free hours/month.
+# GitHub disables scheduled workflows after 60 days without repo activity —
+# re-enable from the Actions tab if that happens.
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Render API
+        run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://post-live-watch.onrender.com/healthz
