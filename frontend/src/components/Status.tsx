@@ -38,7 +38,7 @@ export function WakingBanner() {
   if (!slow) return null;
   return (
     <div className="waking" role="status">
-      Waking up the server… the free-tier API sleeps when idle and can take up to a minute to respond.
+      Still working… the free-tier API may be waking up (up to a minute), or drafting AI notes for this screen.
     </div>
   );
 }

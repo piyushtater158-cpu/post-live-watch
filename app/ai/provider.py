@@ -3,54 +3,136 @@ it. Every task function has a template fallback (app/ai/templates.py) and is
 called the same way whether AI is on or off — callers never branch on the
 toggle themselves, this module does.
 
-Provider: OpenRouter (https://openrouter.ai), one chat-completions call,
-model selectable via the OPENROUTER_MODEL env var so it can be swapped
-without touching code.
+Provider: OpenRouter (https://openrouter.ai), FREE models only. The model
+list comes from OPENROUTER_MODELS (comma-separated, in preference order) and
+is tried in groups of 3 via OpenRouter's `models` fallback array.
 """
 
 from __future__ import annotations
 
 import os
+import threading
+import time
 
 import httpx
 
 from . import templates as tpl
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "openai/gpt-4o-mini"  # placeholder default; override via OPENROUTER_MODEL
 REQUEST_TIMEOUT = 15.0
 
+# Preference order for this app's short drafting/classification tasks (incl.
+# Hinglish): fast general instruct models first, the openrouter/free router last.
+DEFAULT_FREE_MODELS = (
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "openrouter/free",
+)
+FREE_ROUTER = "openrouter/free"
+MODELS_PER_REQUEST = 3  # OpenRouter rejects a `models` array longer than this
+RATE_LIMIT_COOLDOWN_S = 60.0
+CACHE_MAX = 512
 
-def call_ai(system_prompt: str, user_prompt: str, max_tokens: int = 300) -> str | None:
-    """Returns the model's text, or None if AI is off / unconfigured / the call fails.
-    This is the ONE place that talks to an LLM provider in this app."""
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
+_cache: dict[tuple, str] = {}
+_inflight: dict[tuple, threading.Event] = {}
+_lock = threading.Lock()
+_cooldown_until = 0.0
+
+
+def is_free_model(model_id: str) -> bool:
+    return model_id.endswith(":free") or model_id == FREE_ROUTER
+
+
+def free_models() -> list[str]:
+    """The configured model list with anything that isn't a free variant
+    dropped — the account has no paid budget, so a paid id must never be sent."""
+    raw = os.environ.get("OPENROUTER_MODELS", "")
+    configured = [m.strip() for m in raw.split(",") if m.strip()] or list(DEFAULT_FREE_MODELS)
+    return [m for m in configured if is_free_model(m)]
+
+
+def _request(api_key: str, models: list[str], system_prompt: str, user_prompt: str,
+             max_tokens: int, temperature: float) -> str | None:
+    global _cooldown_until
+    resp = httpx.post(
+        OPENROUTER_URL,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "models": models,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            # Reasoning tokens would eat max_tokens and add latency for one-sentence tasks.
+            "reasoning": {"enabled": False},
+            # Second guard behind the :free allowlist — OpenRouter refuses any endpoint that costs money.
+            "provider": {"max_price": {"prompt": 0, "completion": 0, "request": 0}},
+        },
+        timeout=REQUEST_TIMEOUT,
+    )
+    if resp.status_code == 429:
+        # Account-level limits (free-models-per-min / per-day) pause AI app-wide;
+        # a 429 relayed from one busy upstream provider just moves on to the next group.
+        try:
+            message = str(resp.json().get("error", {}).get("message", ""))
+        except ValueError:
+            message = ""
+        if "rate limit exceeded" in message.lower():
+            reset_ms = resp.headers.get("X-RateLimit-Reset")
+            reset_at = int(reset_ms) / 1000 if reset_ms and reset_ms.isdigit() else 0
+            _cooldown_until = max(time.time() + RATE_LIMIT_COOLDOWN_S, reset_at)
         return None
-    model = os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+    resp.raise_for_status()
+    content = (resp.json()["choices"][0]["message"].get("content") or "").strip()
+    return content or None
+
+
+def call_ai(system_prompt: str, user_prompt: str, max_tokens: int = 300, temperature: float = 0.4) -> str | None:
+    """Returns the model's text, or None if AI is off / unconfigured / the call fails.
+    This is the ONE place that talks to an LLM provider in this app. Answers are
+    cached per prompt (free models allow ~50 requests/day), concurrent identical
+    calls share one request, and after a rate-limit response every call falls
+    straight back to templates until the limit resets."""
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    models = free_models()
+    if not api_key or not models or time.time() < _cooldown_until:
+        return None
+
+    key = (system_prompt, user_prompt, max_tokens, temperature)
+    with _lock:
+        if key in _cache:
+            return _cache[key]
+        waiter = _inflight.get(key)
+        if waiter is None:
+            _inflight[key] = threading.Event()
+    if waiter is not None:
+        waiter.wait(REQUEST_TIMEOUT * 2 + 5)
+        return _cache.get(key)
+
+    text = None
     try:
-        resp = httpx.post(
-            OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "max_tokens": max_tokens,
-                "temperature": 0.4,
-            },
-            timeout=REQUEST_TIMEOUT,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"].strip()
-    except Exception:
-        return None  # any failure (network, auth, rate limit, bad response) falls back to templates
+        for i in range(0, len(models), MODELS_PER_REQUEST):
+            if time.time() < _cooldown_until:
+                break
+            try:
+                text = _request(api_key, models[i:i + MODELS_PER_REQUEST], system_prompt, user_prompt,
+                                max_tokens, temperature)
+            except Exception:
+                text = None  # network, auth, provider error, bad response — try the next group
+            if text:
+                break
+    finally:
+        with _lock:
+            if text:
+                if len(_cache) >= CACHE_MAX:
+                    _cache.pop(next(iter(_cache)))
+                _cache[key] = text
+            _inflight.pop(key).set()
+    return text
 
 
 def explain_underperformance(ai_enabled: bool, creator_handle: str, reach: int, min_reach: int,

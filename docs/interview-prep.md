@@ -47,7 +47,16 @@ This is the most important point to explain well.
 
 > **Likely question:** "How do you switch AI models?"
 >
-> Set the `OPENROUTER_MODEL` environment variable. No code change. The default is `openai/gpt-4o-mini`.
+> Set the `OPENROUTER_MODELS` environment variable: a comma-separated list in preference order. No code change is needed.
+>
+> The app uses **free OpenRouter models only**, for example Nemotron 3 Super, Gemma 4, and the `openrouter/free` router as a last resort. Two guards stop a paid request:
+>
+> - The code drops any model id that isn't a `:free` variant.
+> - Every request sends `provider.max_price = 0`, so OpenRouter refuses any endpoint that costs money.
+>
+> OpenRouter accepts at most 3 models per request, so the list is tried in groups of 3.
+>
+> **Likely follow-up:** "What about the free-tier quota?" Free models allow about 20 requests a minute and 50 a day. Answers are cached per prompt, and the current day's notes are generated in the background after startup or a day change. If OpenRouter reports an account rate limit, every AI call falls back to templates until the limit resets.
 
 ---
 
@@ -70,7 +79,7 @@ The request path, from top to bottom:
 
 - **API on Render's free plan**, built from the `Dockerfile` using the `render.yaml` Blueprint.
 - **Frontend on Vercel.** `frontend/vercel.json` forwards `/api/*` to Render, so the browser only ever talks to one origin and the backend needs no CORS setup.
-- **Keep-alive ping.** Render's free plan sleeps after 15 idle minutes and wipes the filesystem, including the SQLite file, when it does. A GitHub Actions job (`.github/workflows/keepalive.yml`) pings `/healthz` every 10 minutes to keep it awake. One always-on service fits inside the 750 free hours a month.
+- **Keep-alive ping.** Render's free plan sleeps after 15 idle minutes and wipes the filesystem, including the SQLite file, when it does. A GitHub Actions job (`.github/workflows/keepalive.yml`) pings `/healthz` every 10 minutes during Indian daytime (08:30 to 00:30 IST) to keep it awake. That's about 500 of the 750 free hours a month. The hours are shared across the whole Render workspace, and going over suspends every free service, so the rest is left for the other service.
 - **Self-hosted fallback.** `docker compose up -d --build` still works on any VM with a persistent `./data` volume.
 
 **Screens:** Campaign Overview (`/`), Flag Queue (`/queue`), Creator Profiles (`/creators`), Brand Daily Report (`/report`), Decision Log (`/decisions`), and the raw engine output at `/api/debug`.

@@ -1,7 +1,8 @@
 # Render Blueprint — the FastAPI API (and the server-rendered Jinja2 screens) on the
 # free plan. Free web services have an ephemeral filesystem: the SQLite DB is
 # re-seeded on every deploy/restart. .github/workflows/keepalive.yml pings
-# /healthz so the service doesn't idle out (and wipe state) between visits.
+# /healthz during IST daytime so the service doesn't idle out (and wipe state)
+# between visits, while leaving free hours for the workspace's other services.
 services:
   - type: web
     name: post-live-watch
@@ -21,5 +22,6 @@ services:
     envVars:
       - key: OPENROUTER_API_KEY
         sync: false
-      - key: OPENROUTER_MODEL
-        value: openai/gpt-4o-mini
+      # Free variants only — app/ai/provider.py drops any id that isn't ":free" or openrouter/free.
+      - key: OPENROUTER_MODELS
+        value: nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3.5-lightning:free,google/gemma-4-26b-a4b-it:free,openrouter/free

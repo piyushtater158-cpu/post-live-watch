@@ -4,10 +4,13 @@ through exactly the same code."""
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import threading
 from datetime import datetime, timezone
 
-from app.db import get_ai_enabled, get_current_day, set_state
+from app import dashboard
+from app.db import get_ai_enabled, get_connection, get_current_day, set_state
 from app.rules.engine import evaluate_post
 
 DURATION_DAYS = 7
@@ -17,19 +20,43 @@ def get_app_state(conn: sqlite3.Connection) -> dict:
     return {"current_day": get_current_day(conn), "ai_enabled": get_ai_enabled(conn), "duration_days": DURATION_DAYS}
 
 
+def _warm_ai_cache() -> None:
+    conn = get_connection()
+    try:
+        st = get_app_state(conn)
+        if st["ai_enabled"]:
+            dashboard.get_flag_queue(conn, st["current_day"], True)
+            dashboard.get_brand_report(conn, st["current_day"], True)
+    except Exception:
+        pass  # warming is best-effort; the page request computes the same thing on demand
+    finally:
+        conn.close()
+
+
+def warm_ai_cache() -> None:
+    """Generates the current day's AI notes in the background so the queue and
+    report pages read them from app/ai/provider.py's cache instead of waiting on
+    a dozen sequential free-model calls."""
+    if os.environ.get("OPENROUTER_API_KEY"):
+        threading.Thread(target=_warm_ai_cache, daemon=True).start()
+
+
 def advance_day(conn: sqlite3.Connection) -> dict:
     st = get_app_state(conn)
     set_state(conn, "current_day", str(min(st["current_day"] + 1, st["duration_days"])))
+    warm_ai_cache()
     return get_app_state(conn)
 
 
 def reset_day(conn: sqlite3.Connection) -> dict:
     set_state(conn, "current_day", "1")
+    warm_ai_cache()
     return get_app_state(conn)
 
 
 def toggle_ai(conn: sqlite3.Connection) -> dict:
     set_state(conn, "ai_enabled", "0" if get_ai_enabled(conn) else "1")
+    warm_ai_cache()
     return get_app_state(conn)
 
 

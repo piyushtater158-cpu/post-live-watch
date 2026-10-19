@@ -95,17 +95,21 @@ JSON API (all under `/api`):
 ```
 Browser ──> Vercel (frontend/, static React build)
               └─ rewrite /api/* ──> Render free web service (Dockerfile: FastAPI + SQLite)
-GitHub Actions keep-alive ──(every 10 min)──> Render /healthz
+GitHub Actions keep-alive ──(every 10 min, IST daytime)──> Render /healthz
 ```
 
 - **API on Render**, defined in `render.yaml`: Docker runtime, `free` plan, health check on `/healthz`, auto-deploys on pushes to `main`.
   - One-time setup: Render dashboard → **New → Blueprint** → pick this repo → paste `OPENROUTER_API_KEY` (optional; the app runs on template fallbacks without it).
   - The service URL is `https://post-live-watch.onrender.com`.
 - **Frontend on Vercel**: project root is `frontend/`, and pushes to `main` auto-deploy. `frontend/vercel.json` rewrites `/api/*` to the Render URL, so the browser only ever sees one origin (no CORS), and sends every other path to `index.html` for client-side routing.
-- **Keep-alive**: Render's free plan sleeps a service after 15 idle minutes and wipes its filesystem (including the SQLite DB) when it does. `.github/workflows/keepalive.yml` pings `/healthz` every 10 minutes to prevent that. One always-on service fits in the 750 free instance-hours a month.
+- **Keep-alive**: Render's free plan sleeps a service after 15 idle minutes and wipes its filesystem (including the SQLite DB) when it does. `.github/workflows/keepalive.yml` pings `/healthz` every 10 minutes from 08:30 to 00:30 IST (about 500 h a month). The 750 free instance-hours are shared by every free service in the Render workspace, and exceeding them suspends all of them, so the service is allowed to sleep overnight.
   - A redeploy still re-seeds the demo data back to day 1. That's acceptable because all data is synthetic.
   - GitHub pauses scheduled workflows after 60 days with no repo activity. Re-enable it from the Actions tab.
   - If the ping is ever delayed and Render is waking up, the frontend shows a "Waking up the server…" banner.
+- **AI uses free OpenRouter models only.** `OPENROUTER_MODELS` is an ordered list, tried in groups of 3 (OpenRouter's maximum per request).
+  - Any id that isn't a `:free` variant (or `openrouter/free`) is dropped in code, and every request carries a `max_price` of 0, so a paid request can't happen.
+  - Answers are cached per prompt, and the current day's notes are generated in the background.
+  - After an account rate limit (free models allow about 50 requests a day), the app falls back to templates until the limit resets.
 - **CI**: `.github/workflows/ci.yml` runs `pytest` and the frontend build on every push and PR.
 
 ### Self-hosted alternative (any VM with Docker)

@@ -14,7 +14,7 @@ from app import actions, dashboard
 from app.deps import get_db
 from app.rules.engine import evaluate_campaign
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", on_startup=[actions.warm_ai_cache])
 
 
 class DecisionIn(BaseModel):

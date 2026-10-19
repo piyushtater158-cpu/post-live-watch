@@ -1,13 +1,15 @@
 # Render's free plan sleeps a web service after 15 idle minutes and wipes its
 # filesystem (the SQLite DB) when it does. Pinging every 10 minutes keeps it
-# awake; one always-on free service fits inside the 750 free hours/month.
+# awake — but only 03:00–18:59 UTC (08:30–00:29 IST, ~500 h/month), because the
+# 750 free instance-hours are shared with every other free service in the Render
+# workspace, and going over suspends all of them until the month resets.
 # GitHub disables scheduled workflows after 60 days without repo activity —
 # re-enable from the Actions tab if that happens.
 name: keep-alive
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/10 3-18 * * *"
   workflow_dispatch:
 
 jobs:
