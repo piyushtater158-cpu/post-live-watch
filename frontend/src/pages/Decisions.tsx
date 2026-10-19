@@ -38,7 +38,7 @@ export default function Decisions() {
                 <tr key={d.id}>
                   <td className="ts">{d.created_at.slice(0, 16).replace("T", " ")}</td>
                   <td className="h">@{d.handle}</td>
-                  <td>{d.rule_name ?? <span className="null">— no rule</span>}</td>
+                  <td>{d.rule_name ?? (d.source === "intake" ? "Deal intake" : <span className="null">— no rule</span>)}</td>
                   <td>
                     <span className={`act-chip a-${d.action}`}>{d.action}</span>
                   </td>

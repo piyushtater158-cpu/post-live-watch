@@ -11,6 +11,7 @@ const LINKS = [
   { to: "/creators", label: "Creators" },
   { to: "/report", label: "Brand Report" },
   { to: "/decisions", label: "Decision Log" },
+  { to: "/intake", label: "New Deal" },
 ];
 
 export function Layout() {

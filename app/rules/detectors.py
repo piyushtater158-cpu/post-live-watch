@@ -102,15 +102,25 @@ def rule_5_underperforming(ctx: PostContext, t: dict) -> dict | None:
     promise_cutoff = t["underperform_pct_of_promise"] * ctx.min_reach
     avg_cutoff = t["underperform_pct_of_creator_avg"] * ctx.creator_avg_reach
     if reach < promise_cutoff and reach < avg_cutoff:
+        # Wording only, never behavior: when this creator's average came from
+        # app/intake.py's follower-count estimate rather than a measurement,
+        # say so — the rule still fires on the exact same comparison either
+        # way, but a flag card asserting an estimate with a measurement's
+        # authority would be the same kind of silent overclaim this app's
+        # contract_notes elsewhere exist to prevent.
+        is_estimated = ctx.creator_metrics_source == "estimated"
+        avg_label = "estimated average" if is_estimated else "average"
+        avg_suffix = ", unverified" if is_estimated else ""
         return {
             "rule_id": 5, "rule_name": "Underperforming", "polarity": NEGATIVE,
             "severity": _sev(t, 5),
             "reason": (
                 f"Reach {reach} is below {t['underperform_pct_of_promise']*100:.0f}% of the promised "
                 f"{ctx.min_reach} and below {t['underperform_pct_of_creator_avg']*100:.0f}% of this "
-                f"creator's average ({ctx.creator_avg_reach:.0f})."
+                f"creator's {avg_label} ({ctx.creator_avg_reach:.0f}{avg_suffix})."
             ),
             "evidence": {"reach": reach, "min_reach": ctx.min_reach, "creator_avg_reach": ctx.creator_avg_reach,
+                         "creator_avg_reach_source": ctx.creator_metrics_source,
                          "promise_cutoff": round(promise_cutoff), "avg_cutoff": round(avg_cutoff)},
         }
     return None

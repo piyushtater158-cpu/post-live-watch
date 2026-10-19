@@ -47,6 +47,23 @@ This also means a creator's deal can be a package — "1 reel + 2 stories" — n
 so `/creators` and `/creators/<id>` never silently collapse a multi-part deal down to one
 arbitrarily-picked post the way an unordered `.fetchone()` used to.
 
+## Deal intake: AI drafts, a human confirms
+
+**New Deal** (`/intake`) turns an account manager's shorthand note, such as *"Signed Priya for 2 reels + 1 story, barter worth ₹5k, no reach guarantee, skipping our hashtag due to an exclusivity clause, due in 3 days"*, into real `creators`, `deliverables` and not-yet-posted `posts` rows. This is the one AI task whose output becomes an input the rules engine measures against, so it is fenced in:
+
+- **Drafting.** AI (`app/ai/provider.py:parse_deal_brief`) or, with AI off, a deterministic keyword extractor (`app/ai/templates.py:parse_deal_brief_fallback`) only produces a draft.
+- **Checking.** `app/intake.py` normalises and validates the draft without trusting it.
+- **Preview.** The manager reviews an editable preview that shows the exact contract notes the queue will later display.
+- **Confirming.** Nothing is written until the manager approves or edits, using the same Approve / Edit / Dismiss pattern as the Flag Queue. Each created deliverable logs a `source='intake'` row in the Decision Log, holding the raw brief.
+
+Hard limits:
+
+- **Disclosure can never be waived** through intake.
+- **The AI is forbidden from inventing a creator's average reach or engagement.** A new creator's averages are estimated from follower count using `config/thresholds.yaml → intake`, labelled "Estimated reach" on their profile, and recorded as `am_entered` only if the manager types a real figure.
+- **Existing creators are never edited.** Naming one attaches a deliverable to them. A first-name match ("Priya" → `@glowgirlpriya`) is only ever offered as a suggestion.
+- **Not-yet-due deliverables don't count.** A deliverable whose due day hasn't arrived is left out of the overview's live percentage and the creator's reliability score.
+- **No score without evidence.** A creator with no history and nothing due yet gets "New — no track record yet", not a score.
+
 ## Running it locally
 
 ```bash
@@ -55,7 +72,7 @@ source .venv/Scripts/activate   # Windows Git Bash; use .venv/bin/activate on Li
 pip install -r requirements.txt
 
 python scripts/seed.py --reset   # generates data/postlivewatch.db
-pytest -v                        # all 37 should pass — the correctness proof
+pytest -v                        # all 92 should pass — the correctness proof
 
 cp .env.example .env              # optional: add OPENROUTER_API_KEY to enable AI
 uvicorn app.main:app --reload --port 8420
@@ -71,7 +88,7 @@ npm run dev        # http://localhost:5173
 
 Open `http://localhost:5173/` (React app) or `http://localhost:8420/` (the server-rendered Jinja2 + HTMX version of the same screens). Use the **Advance day ▶** control in the top nav to replay the 7-day campaign and watch flags appear over time (exactly what the day-simulator is for). Hit `/api/debug` directly for the full computed state as JSON — the same proof-of-correctness surface the tests check against.
 
-Screens: Campaign Overview (`/`) · Flag Queue (`/queue`) · Creator Profiles (`/creators`) · Brand Daily Report (`/report`, read-only) · Decision Log (`/decisions`).
+Screens: Campaign Overview (`/`) · Flag Queue (`/queue`) · Creator Profiles (`/creators`) · Brand Daily Report (`/report`, read-only) · Decision Log (`/decisions`) · New Deal (`/intake`).
 
 **AI on/off**: the pill button in the nav toggles `app_state.ai_enabled` in the DB. With no `OPENROUTER_API_KEY` set, every AI task function (`app/ai/provider.py`) falls back to its template/keyword counterpart automatically — nothing breaks.
 
@@ -86,8 +103,11 @@ See `docs/designs/frontend-brief.md` for the content and data contract of each s
 
 JSON API (all under `/api`):
 
-- `GET`: `state`, `overview`, `queue`, `creators`, `creators/{id}`, `report`, `decisions`, `debug`.
+- `GET`: `state`, `overview`, `queue`, `creators`, `creators/{id}`, `report`, `decisions`, `intake` (campaign defaults), `debug`.
 - `POST`: `flags/{post_id}/decide` (JSON body: `action`, `message_text`, `original_message`, `flag_rule_id`), `simulate/advance-day`, `simulate/reset-day`, `settings/ai-toggle`.
+- `POST` (deal intake):
+  - `intake/parse` takes `{brief_text}` and returns the draft and its blocking errors, without writing anything.
+  - `intake/confirm` takes `{action, original_draft, draft}`. Approve commits `original_draft`, edit commits `draft`, and dismiss writes nothing.
 - `GET /healthz` returns `{"ok": true}`.
 
 ## Deploying ($0: Render + Vercel + GitHub Actions)
@@ -135,6 +155,7 @@ Real Instagram API, authentication, multi-tenant support, payments, auto-sending
 app/
   rules/          # the 12 detectors + engine + context loader (the actual engine)
   ai/             # single OpenRouter-calling function + template fallbacks
+  intake.py       # deal intake: normalize / validate / commit a drafted brief (no AI import)
   reliability.py  # transparent weighted reliability-score formula
   dashboard.py    # aggregation layer between the engine and the screens
   actions.py      # decisions + day simulator, shared by both route sets
@@ -144,7 +165,7 @@ app/
 frontend/                  # React + TS single-page app, deployed on Vercel
 config/thresholds.yaml     # every rule threshold, severity, and status cutoff — editable
 scripts/seed.py            # synthetic GlowLeaf campaign + 20 creators + 6mo history
-tests/                     # pytest: all 12 rules, contracts, AI fallback, JSON API
+tests/                     # pytest: all 12 rules, contracts, deal intake, AI fallback + free-model guard, JSON API
 render.yaml                # Render Blueprint (free Docker web service)
 .github/workflows/         # CI + keep-alive ping
 docs/designs/              # office-hours design doc + frontend brief

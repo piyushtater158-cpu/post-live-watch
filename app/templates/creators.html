@@ -26,8 +26,12 @@
         {% for c in creators %}
         <tr>
           <td><a href="/creators/{{ c.id }}">@{{ c.handle }}</a></td>
-          <td class="muted"><span>{{ c.tier | capitalize }}</span> · <span>{{ c.niche }}</span></td>
+          <td class="muted"><span>{{ c.tier | capitalize }}</span> · <span>{{ c.niche }}</span>{% if c.metrics_source == 'estimated' %}<span class="tag est" title="Average reach estimated from follower count at deal intake, not measured">Estimated reach</span>{% endif %}</td>
+          {% if c.reliability.score is not none %}
           <td data-sort-value="{{ c.reliability.score }}"><div class="score"><span>{{ c.reliability.score | round | int }}</span><span class="bar" aria-hidden="true"><i style="width:{{ c.reliability.score }}%"></i></span></div></td>
+          {% else %}
+          <td data-sort-value="-1"><span class="muted">—</span></td>
+          {% endif %}
           <td data-sort-value="{{ c.reliability.book_again_hint | hint_rank }}"><span class="hint {{ c.reliability.book_again_hint | hint_class }}">{{ c.reliability.book_again_hint }}</span></td>
           {% if c.current_campaign %}
           <td data-sort-value="{{ c.current_campaign.status | status_rank }}">

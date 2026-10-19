@@ -7,6 +7,7 @@ import { Layout } from "./components/Layout";
 import CreatorProfile from "./pages/CreatorProfile";
 import Creators from "./pages/Creators";
 import Decisions from "./pages/Decisions";
+import Intake from "./pages/Intake";
 import Overview from "./pages/Overview";
 import Queue from "./pages/Queue";
 import Report from "./pages/Report";
@@ -37,6 +38,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/creators" element={<Creators />} />
             <Route path="/creators/:id" element={<CreatorProfile />} />
             <Route path="/decisions" element={<Decisions />} />
+            <Route path="/intake" element={<Intake />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

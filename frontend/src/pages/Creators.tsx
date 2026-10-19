@@ -16,20 +16,28 @@ const columns: Column<CreatorSummary>[] = [
     cell: (c) => (
       <>
         <span>{capitalize(c.tier)}</span> · <span>{c.niche}</span>
+        {c.metrics_source === "estimated" && (
+          <span className="tag est" title="Average reach estimated from follower count at deal intake, not measured">
+            Estimated reach
+          </span>
+        )}
       </>
     ),
   },
   {
     label: "Reliability",
-    sortValue: (c) => c.reliability.score,
-    cell: (c) => (
-      <div className="score">
-        <span>{Math.round(c.reliability.score)}</span>
-        <span className="bar" aria-hidden="true">
-          <i style={{ width: `${c.reliability.score}%` }} />
-        </span>
-      </div>
-    ),
+    sortValue: (c) => c.reliability.score ?? -1,
+    cell: (c) =>
+      c.reliability.score === null ? (
+        <span className="muted">—</span>
+      ) : (
+        <div className="score">
+          <span>{Math.round(c.reliability.score)}</span>
+          <span className="bar" aria-hidden="true">
+            <i style={{ width: `${c.reliability.score}%` }} />
+          </span>
+        </div>
+      ),
   },
   {
     label: "Book again?",

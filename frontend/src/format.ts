@@ -9,7 +9,7 @@ export const statusRank = (s: Status | string) => STATUS_RANK[s] ?? 0;
 
 export function hintClass(hint: string): "yes" | "maybe" | "caution" {
   if (hint.startsWith("Yes")) return "yes";
-  if (hint.startsWith("Maybe")) return "maybe";
+  if (hint.startsWith("Maybe") || hint.startsWith("New")) return "maybe";
   return "caution";
 }
 export const hintRank = (hint: string) => HINT_RANK[hintClass(hint)];

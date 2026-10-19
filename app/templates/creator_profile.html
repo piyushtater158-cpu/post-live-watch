@@ -13,28 +13,38 @@
     <div class="tags">
       <span class="tag">{{ creator.tier | capitalize }} tier</span>
       <span class="tag">{{ creator.niche }}</span>
+      {% if creator.metrics_source == 'estimated' %}
+      <span class="tag est" title="Rules 5 and 12 compare real reach against this estimate">Estimated reach · {{ "{:,}".format(creator.avg_reach | round | int) }} from follower count</span>
+      {% elif creator.metrics_source == 'am_entered' %}
+      <span class="tag">Avg reach {{ "{:,}".format(creator.avg_reach | round | int) }} · entered at intake</span>
+      {% endif %}
     </div>
   </div>
 
   <section class="kpis wide" aria-label="Reliability">
     <div class="kpi">
       <div class="lbl">Reliability score</div>
+      {% if reliability.score is not none %}
       <div class="val"><span>{{ reliability.score | round | int }}</span><small>/100</small></div>
       <div class="bar" aria-hidden="true"><i style="width:{{ reliability.score }}%"></i></div>
+      {% else %}
+      <div class="val">—</div>
+      <div class="sub">no campaign due yet</div>
+      {% endif %}
     </div>
     <div class="kpi">
       <div class="lbl">On-time rate</div>
-      <div class="val">{{ (reliability.on_time_rate * 100) | round | int }}%</div>
+      <div class="val">{% if reliability.on_time_rate is not none %}{{ (reliability.on_time_rate * 100) | round | int }}%{% else %}—{% endif %}</div>
       <div class="sub">across {{ reliability.campaigns_considered }} campaigns</div>
     </div>
     <div class="kpi">
       <div class="lbl">Avg performance</div>
-      <div class="val">{{ "%.2f" | format(reliability.avg_performance_ratio) }}x</div>
+      <div class="val">{% if reliability.avg_performance_ratio is not none %}{{ "%.2f" | format(reliability.avg_performance_ratio) }}x{% else %}—{% endif %}</div>
       <div class="sub">actual ÷ promised reach</div>
     </div>
     <div class="kpi">
       <div class="lbl">Avg flags / campaign</div>
-      <div class="val">{{ "%.1f" | format(reliability.avg_flags_per_campaign) }}</div>
+      <div class="val">{% if reliability.avg_flags_per_campaign is not none %}{{ "%.1f" | format(reliability.avg_flags_per_campaign) }}{% else %}—{% endif %}</div>
     </div>
   </section>
 

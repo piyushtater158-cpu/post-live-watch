@@ -16,9 +16,15 @@ STATUS_ORDER = {"Act now": 0, "Needs a look": 1, "OK": 2}
 def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
     results = evaluate_campaign(conn, campaign_id=1, current_day=current_day)
 
-    total_due = len(results)
+    # A deliverable intaken with a future due_day (app/intake.py) hasn't started
+    # yet — it must not count in "posts due today" or drag the live-percentage
+    # down before its own clock has started. by_status/opportunities/rows below
+    # still include it (so it's visible on the board, just not due yet).
+    due_results = [r for r in results if r["due_day"] <= current_day]
+
+    total_due = len(due_results)
     posts_live = sum(
-        1 for r in results
+        1 for r in due_results
         if conn.execute(
             "SELECT posted_at FROM posts WHERE id = ?", (r["post_id"],)
         ).fetchone()["posted_at"] is not None
@@ -27,7 +33,7 @@ def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
     total_reach = 0
     total_promised = 0
     guaranteed_count = 0  # deliverables that actually carry a reach guarantee (excludes barter/affiliate)
-    for r in results:
+    for r in due_results:
         # min_reach is resolved per-deal (app/rules/contract.py) — barter/affiliate
         # deliverables have none, and must not inflate the brand-facing promised figure.
         if r["min_reach"]:
@@ -121,6 +127,7 @@ def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool)
                 extra = ai.explain_underperformance(
                     ai_enabled, cinfo["handle"], f["evidence"]["reach"], f["evidence"]["min_reach"],
                     f["evidence"]["creator_avg_reach"], cinfo["niche"], r["format"],
+                    f["evidence"].get("creator_avg_reach_source"),
                 )
             elif f["rule_id"] == 7:
                 sentiment = ai.classify_sentiment(ai_enabled, [
@@ -164,29 +171,36 @@ def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool)
     return cards
 
 
+def get_creator_package(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict:
+    """The rolled-up status plus every deliverable for one creator — the
+    shared shape both get_creator_profile and the deal-intake confirmation
+    screen (app/main.py's /intake/confirm) use to show the new rows flowing
+    through the already-shipped rollup machinery immediately."""
+    deliverables = _creator_deliverables(conn, creator_id, current_day)
+    return {"current_campaign": _rollup_campaign_status(deliverables), "current_deliverables": deliverables}
+
+
 def get_creator_list(conn: sqlite3.Connection, current_day: int) -> list[dict]:
     creators = []
-    for r in conn.execute("SELECT id, handle, tier, niche FROM creators ORDER BY handle").fetchall():
+    for r in conn.execute("SELECT id, handle, tier, niche, metrics_source FROM creators ORDER BY handle").fetchall():
         deliverables = _creator_deliverables(conn, r["id"], current_day)
         creators.append({
             **dict(r),
             "reliability": compute_reliability(conn, r["id"], current_day),
             "current_campaign": _rollup_campaign_status(deliverables),
         })
-    creators.sort(key=lambda c: -c["reliability"]["score"])
+    creators.sort(key=lambda c: -(c["reliability"]["score"] if c["reliability"]["score"] is not None else -1))
     return creators
 
 
 def get_creator_profile(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict:
     creator = dict(conn.execute("SELECT * FROM creators WHERE id = ?", (creator_id,)).fetchone())
     reliability = compute_reliability(conn, creator_id, current_day)
-    deliverables = _creator_deliverables(conn, creator_id, current_day)
 
     return {
         "creator": creator,
         "reliability": reliability,
-        "current_campaign": _rollup_campaign_status(deliverables),
-        "current_deliverables": deliverables,
+        **get_creator_package(conn, creator_id, current_day),
     }
 
 

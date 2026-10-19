@@ -67,7 +67,8 @@ def resolve_terms(deliverable_row: dict, campaign_row: dict) -> ResolvedTerms:
             notes.append({"requirement": "Link sticker", "note": f"Explicitly required for this {fmt} deal."})
 
     waived_raw = deliverable_row.get("waived_notes")
-    waived = json.loads(waived_raw) if waived_raw else {}
+    # A DB row stores JSON text; an intake draft (app/intake.py preview) carries the dict itself.
+    waived = waived_raw if isinstance(waived_raw, dict) else (json.loads(waived_raw) if waived_raw else {})
     label_for = {
         "required_disclosure": "Disclosure",
         "required_tag": "Brand tag",

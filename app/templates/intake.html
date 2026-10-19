@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}New Deal · Post-Live Watch{% endblock %}
+{% block content %}
+<main class="wrap narrow">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Deal intake</p>
+      <h1>New Deal</h1>
+    </div>
+    <p class="meta mono">Describe what was negotiated — a human confirms before anything is created</p>
+  </div>
+
+  <div class="panel">
+    <span class="lbl">Campaign defaults</span>
+    <p>tag {{ campaign.required_tag }} · hashtag {{ campaign.required_hashtag }} · disclosure {{ campaign.required_disclosure | replace('|', ' or ') }} · link sticker required on stories</p>
+  </div>
+
+  <form class="panel" style="flex-direction:column;align-items:stretch;gap:12px" hx-post="/intake/parse" hx-target="#intake-preview" hx-swap="outerHTML">
+    <label for="brief_text" class="lbl">Deal brief</label>
+    <textarea id="brief_text" name="brief_text" placeholder="e.g. Signed Priya for 2 reels + 1 story, barter deal worth ₹5k product, no reach guarantee, skipping our campaign hashtag due to an exclusivity clause, due in 3 days" required></textarea>
+    <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" type="button" onclick="document.getElementById('brief_text').value=this.dataset.example" data-example="Signed Priya for 2 reels + 1 story, barter deal worth ₹5k product, no reach guarantee, skipping our campaign hashtag due to an exclusivity clause, due in 3 days">Example: barter + waived hashtag</button>
+      <button class="btn" type="button" onclick="document.getElementById('brief_text').value=this.dataset.example" data-example="Renewing @glow_with_meera for one more reel, ₹55k, min reach 40k, due by day 5">Example: renew existing creator</button>
+      <button class="btn" type="button" onclick="document.getElementById('brief_text').value=this.dataset.example" data-example="Booked @casualcosmetics for 1 reel via affiliate commission, no min reach, due tomorrow">Example: affiliate deal</button>
+    </div>
+    <div class="row" style="display:flex;justify-content:flex-end">
+      <button class="btn approve" type="submit">{{ 'Draft the deal' if ai_enabled else 'Draft the deal (keyword mode)' }}</button>
+    </div>
+  </form>
+
+  <div id="intake-preview" class="list">
+    <div class="empty">
+      <p>Nothing drafted yet.</p>
+      <small>Describe the deal above and draft it — nothing is created until you review and confirm.</small>
+    </div>
+  </div>
+</main>
+{% endblock %}

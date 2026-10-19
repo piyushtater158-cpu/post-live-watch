@@ -1,0 +1,230 @@
+<div id="intake-preview" class="list">
+{% if result %}
+  <article class="card">
+    <div class="strip ok" aria-hidden="true"></div>
+    <div class="card-head">
+      <span class="chip ok">Created</span>
+      <a class="handle" href="/creators/{{ result.creator_id }}">@{{ draft.creator.handle }}</a>
+      <span class="fmt">{{ result.deliverable_ids | length }} deliverable(s)</span>
+    </div>
+    {% if package and package.current_campaign %}
+    <div class="panel">
+      <span class="lbl">Rolled-up status</span>
+      <span class="chip {{ package.current_campaign.status | status_class }}">{{ package.current_campaign.status }}</span>
+      <span class="muted mono">{{ package.current_campaign.delivered }}/{{ package.current_campaign.total_deliverables }} live</span>
+    </div>
+    {% endif %}
+    <div class="row" style="padding:16px 22px;display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn approve" href="/creators/{{ result.creator_id }}">View creator profile</a>
+      <a class="btn" href="/queue">Go to flag queue</a>
+      <a class="btn ghost" href="/intake">Draft another deal</a>
+    </div>
+  </article>
+
+{% elif not draft.deliverables and not draft.creator.handle %}
+  <div class="empty">
+    <p>Draft dismissed — nothing was created.</p>
+    <small><a href="/intake">Start a new brief</a></small>
+  </div>
+
+{% else %}
+  <article class="card">
+    <div class="strip {{ 'act' if blocking_errors else 'ok' }}" aria-hidden="true"></div>
+    <div class="card-head">
+      <span class="chip ok">Draft</span>
+      <span class="fmt">{{ draft.deliverables | length }} deliverable(s)</span>
+    </div>
+
+    <div class="ainote">
+      <b>{{ 'AI' if draft.source == 'ai' else 'KEYWORD' }}</b>
+      <span>{% if draft.source == 'ai' %}AI draft — review every field before confirming.{% else %}Keyword draft — AI is off (or the model's reply didn't parse). Check every field carefully.{% endif %}</span>
+    </div>
+
+    {% if blocking_errors %}
+    <div class="vwarn">
+      <b>FIX</b>
+      <span>{% for e in blocking_errors %}{{ e.message }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+    {% if draft.warnings %}
+    <div class="estflag">
+      <b>CHECK</b>
+      <span>{% for w in draft.warnings %}{{ w.message }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+
+    <form class="decide" hx-post="/intake/confirm" hx-target="#intake-preview" hx-swap="outerHTML">
+      <input type="hidden" name="brief_text" value="{{ draft.brief_text }}">
+      <input type="hidden" name="source" value="{{ draft.source }}">
+      <input type="hidden" name="original_draft" value='{{ draft | tojson }}'>
+
+      <div class="decide-top">
+        <label>Creator</label>
+        <span class="hintline">Approve confirms the draft exactly as shown &middot; change anything below to unlock Edit &amp; Confirm</span>
+      </div>
+
+      <div class="fieldgrid" style="padding:0 22px 14px">
+        {% if draft.creator.existing_creator_id %}
+        <div class="field" style="grid-column:1/-1">
+          <div class="contractnote" style="margin:0">
+            <b>DEAL</b>
+            <span>Attaching to existing creator <a href="/creators/{{ draft.creator.existing_creator_id }}">@{{ draft.creator.handle }}</a> — their profile and averages won't be changed.</span>
+          </div>
+        </div>
+        <input type="hidden" name="creator_existing_id" value="{{ draft.creator.existing_creator_id }}">
+        <input type="hidden" name="creator_handle" value="{{ draft.creator.handle }}">
+        {% else %}
+        <input type="hidden" name="creator_existing_id" value="">
+        <div class="field">
+          <label>Handle</label>
+          <input type="text" name="creator_handle" value="{{ draft.creator.handle }}" placeholder="handle">
+        </div>
+        <div class="field">
+          <label>Followers</label>
+          <input type="number" name="creator_followers" value="{{ draft.creator.followers }}">
+        </div>
+        <div class="field">
+          <label>Tier</label>
+          <select name="creator_tier">
+            <option value="micro" {% if draft.creator.tier == 'micro' %}selected{% endif %}>Micro</option>
+            <option value="mid" {% if draft.creator.tier == 'mid' %}selected{% endif %}>Mid</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Niche</label>
+          <input type="text" name="creator_niche" value="{{ draft.creator.niche }}">
+        </div>
+        <div class="field">
+          <label>Avg reach</label>
+          <input type="number" name="creator_avg_reach" value="{{ draft.creator.avg_reach }}">
+        </div>
+        <div class="field">
+          <label>Avg engagement rate</label>
+          <input type="number" step="0.001" name="creator_avg_engagement_rate" value="{{ draft.creator.avg_engagement_rate }}">
+        </div>
+        {% if draft.creator.metrics_source == 'estimated' %}
+        <div class="field" style="grid-column:1/-1">
+          <div class="estflag" style="margin:0">
+            <b>EST</b>
+            <span>Reach/engagement estimated from follower count (config/thresholds.yaml &rarr; intake.estimated_reach_rate) — not a measured average. Rules 5 and 12 will compare real reach against this number; replace it if you have a real figure.</span>
+          </div>
+        </div>
+        {% endif %}
+        {% if draft.creator.existing_suggestions %}
+        <div class="field" style="grid-column:1/-1">
+          <span class="muted">Did you mean an existing creator?
+            {% for s in draft.creator.existing_suggestions %}<a href="/creators/{{ s.creator_id }}">@{{ s.handle }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+            — edit the handle above to attach instead.</span>
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <div class="flags">
+      {% for d in draft.deliverables %}
+        <div class="flag" style="grid-template-columns:1fr">
+          <div class="rule"><span>Deliverable {{ loop.index }}</span><span class="mono">{{ d.format | default('reel', true) | capitalize }}</span></div>
+          <div class="fieldgrid">
+            <div class="field">
+              <label>Format</label>
+              <select name="d_format">
+                {% for f in ['reel','carousel','story'] %}<option value="{{ f }}" {% if d.format == f %}selected{% endif %}>{{ f | capitalize }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label>Deal type</label>
+              <select name="d_deal_type">
+                {% for dt in ['paid','barter','affiliate','paid_plus_bonus'] %}<option value="{{ dt }}" {% if d.deal_type == dt %}selected{% endif %}>{{ dt | replace('_', ' ') | capitalize }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label>Fee</label>
+              <input type="number" name="d_fee" value="{{ d.fee if d.fee is not none else '' }}">
+            </div>
+            <div class="field">
+              <label>Barter value</label>
+              <input type="number" name="d_barter_value" value="{{ d.barter_value if d.barter_value is not none else '' }}">
+            </div>
+            <div class="field">
+              <label>Bonus threshold</label>
+              <input type="number" name="d_bonus_threshold" value="{{ d.bonus_threshold if d.bonus_threshold is not none else '' }}">
+            </div>
+            <div class="field">
+              <label>Bonus amount</label>
+              <input type="number" name="d_bonus_amount" value="{{ d.bonus_amount if d.bonus_amount is not none else '' }}">
+            </div>
+            <div class="field">
+              <label>Reach guarantee</label>
+              <select name="d_reach_mode">
+                <option value="guarantee" {% if not d.min_reach_explicitly_none %}selected{% endif %}>Has a minimum</option>
+                <option value="none" {% if d.min_reach_explicitly_none %}selected{% endif %}>No guarantee (stated)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Minimum reach</label>
+              <input type="number" name="d_min_reach" value="{{ d.min_reach if d.min_reach is not none else '' }}">
+            </div>
+            <div class="field">
+              <label>Due &mdash; campaign day</label>
+              <input type="number" name="d_due_day" min="1" max="{{ duration_days }}" value="{{ d.due_day }}">
+            </div>
+            <div class="field">
+              <label>Brand tag</label>
+              <select name="d_tag_mode">
+                <option value="inherit" {% if d.required_tag is none %}selected{% endif %}>Inherit campaign default</option>
+                <option value="waived" {% if d.required_tag == '' %}selected{% endif %}>Waived</option>
+                <option value="literal" {% if d.required_tag and d.required_tag != '' %}selected{% endif %}>Specific value</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tag value (if specific)</label>
+              <input type="text" name="d_tag_value" value="{{ d.required_tag if d.required_tag else '' }}">
+            </div>
+            <div class="field">
+              <label>Tag waiver reason</label>
+              <input type="text" name="d_tag_reason" value="{{ d.waived_notes.required_tag if d.waived_notes and d.waived_notes.required_tag else '' }}">
+            </div>
+            <div class="field">
+              <label>Hashtag</label>
+              <select name="d_hashtag_mode">
+                <option value="inherit" {% if d.required_hashtag is none %}selected{% endif %}>Inherit campaign default</option>
+                <option value="waived" {% if d.required_hashtag == '' %}selected{% endif %}>Waived</option>
+                <option value="literal" {% if d.required_hashtag and d.required_hashtag != '' %}selected{% endif %}>Specific value</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Hashtag value (if specific)</label>
+              <input type="text" name="d_hashtag_value" value="{{ d.required_hashtag if d.required_hashtag else '' }}">
+            </div>
+            <div class="field">
+              <label>Hashtag waiver reason</label>
+              <input type="text" name="d_hashtag_reason" value="{{ d.waived_notes.required_hashtag if d.waived_notes and d.waived_notes.required_hashtag else '' }}">
+            </div>
+            <div class="field">
+              <label>Link sticker</label>
+              <select name="d_link_mode">
+                <option value="inherit" {% if d.requires_link_sticker is none %}selected{% endif %}>Infer from format</option>
+                <option value="required" {% if d.requires_link_sticker == true %}selected{% endif %}>Required</option>
+                <option value="waived" {% if d.requires_link_sticker == false %}selected{% endif %}>Not required</option>
+              </select>
+            </div>
+          </div>
+          {% if d.preview_notes %}
+          <div class="contractnote" style="margin:14px 0 0">
+            <b>DEAL</b>
+            <span>{% for n in d.preview_notes %}{{ n.requirement }}: {{ n.note }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+          </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+      </div>
+
+      <div class="row" style="padding:16px 22px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn approve" type="submit" name="action" value="approve">Approve as drafted</button>
+        <button class="btn" type="submit" name="action" value="edit" disabled>Edit &amp; Confirm</button>
+        <button class="btn ghost" type="submit" name="action" value="dismiss">Dismiss</button>
+      </div>
+    </form>
+  </article>
+{% endif %}
+</div>

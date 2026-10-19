@@ -1,6 +1,9 @@
 import type {
   AppState,
   BrandReport,
+  CampaignDefaults,
+  IntakeDraft,
+  IntakeResponse,
   CreatorProfile,
   CreatorSummary,
   DecisionIn,
@@ -69,4 +72,9 @@ export const api = {
   advanceDay: () => post<AppState>("/simulate/advance-day"),
   resetDay: () => post<AppState>("/simulate/reset-day"),
   toggleAi: () => post<AppState>("/settings/ai-toggle"),
+  intakeDefaults: () => request<{ campaign: CampaignDefaults }>("/intake"),
+  intakeParse: (brief_text: string) => post<IntakeResponse>("/intake/parse", { brief_text }),
+  intakeConfirm: (body: { action: "approve" | "edit"; original_draft: IntakeDraft; draft?: unknown }) =>
+    post<IntakeResponse>("/intake/confirm", body),
+  intakeDismiss: () => post<{ dismissed: true }>("/intake/confirm", { action: "dismiss" }),
 };

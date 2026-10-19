@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Chip, ContractNotes, ErrorBox, Loading } from "../components/Status";
-import { capitalize, hintClass } from "../format";
+import { capitalize, commas, hintClass } from "../format";
 import { usePageData } from "../state";
 
 export default function CreatorProfile() {
@@ -42,33 +42,50 @@ export default function CreatorProfile() {
         <div className="tags">
           <span className="tag">{capitalize(creator.tier)} tier</span>
           <span className="tag">{creator.niche}</span>
+          {creator.metrics_source === "estimated" && (
+            <span className="tag est" title="Rules 5 and 12 compare real reach against this estimate">
+              Estimated reach · {commas(Math.round(creator.avg_reach))} from follower count
+            </span>
+          )}
+          {creator.metrics_source === "am_entered" && (
+            <span className="tag">Avg reach {commas(Math.round(creator.avg_reach))} · entered at intake</span>
+          )}
         </div>
       </div>
 
       <section className="kpis wide" aria-label="Reliability">
         <div className="kpi">
           <div className="lbl">Reliability score</div>
-          <div className="val">
-            <span>{Math.round(reliability.score)}</span>
-            <small>/100</small>
-          </div>
-          <div className="bar" aria-hidden="true">
-            <i style={{ width: `${reliability.score}%` }} />
-          </div>
+          {reliability.score === null ? (
+            <>
+              <div className="val">—</div>
+              <div className="sub">no campaign due yet</div>
+            </>
+          ) : (
+            <>
+              <div className="val">
+                <span>{Math.round(reliability.score)}</span>
+                <small>/100</small>
+              </div>
+              <div className="bar" aria-hidden="true">
+                <i style={{ width: `${reliability.score}%` }} />
+              </div>
+            </>
+          )}
         </div>
         <div className="kpi">
           <div className="lbl">On-time rate</div>
-          <div className="val">{Math.round(reliability.on_time_rate * 100)}%</div>
+          <div className="val">{reliability.on_time_rate === null ? "—" : `${Math.round(reliability.on_time_rate * 100)}%`}</div>
           <div className="sub">across {reliability.campaigns_considered} campaigns</div>
         </div>
         <div className="kpi">
           <div className="lbl">Avg performance</div>
-          <div className="val">{reliability.avg_performance_ratio.toFixed(2)}x</div>
+          <div className="val">{reliability.avg_performance_ratio === null ? "—" : `${reliability.avg_performance_ratio.toFixed(2)}x`}</div>
           <div className="sub">actual ÷ promised reach</div>
         </div>
         <div className="kpi">
           <div className="lbl">Avg flags / campaign</div>
-          <div className="val">{reliability.avg_flags_per_campaign.toFixed(1)}</div>
+          <div className="val">{reliability.avg_flags_per_campaign === null ? "—" : reliability.avg_flags_per_campaign.toFixed(1)}</div>
         </div>
       </section>
 

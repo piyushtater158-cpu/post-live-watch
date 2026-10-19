@@ -229,9 +229,37 @@ Each decision is saved with a UTC timestamp, and the endpoint returns the refres
 
 ---
 
+## 9b. Deal intake: the one place AI does real work
+
+**New Deal** (`/intake`) turns a manager's shorthand note into real creator, deliverable and post rows. For example: "Signed Priya for 2 reels + 1 story, barter worth ₹5k, no reach guarantee, skipping our hashtag, due in 3 days".
+
+The flow:
+
+1. **Draft.** AI produces a JSON draft. With AI off, a keyword extractor produces the same shape.
+2. **Check.** `app/intake.py` normalises and validates the draft without trusting it.
+3. **Review.** The manager sees an editable preview, including the exact contract notes the queue will later show.
+4. **Confirm.** Nothing is saved until the manager approves, edits or dismisses, the same pattern as the Flag Queue.
+
+> **Likely question:** "Isn't letting AI write rows the engine reads dangerous?"
+>
+> Yes. That's why it's fenced on four sides:
+>
+> - **Approval.** A person always approves.
+> - **Validation.** The output is validated like untrusted input.
+> - **No invented numbers.** The AI is forbidden from emitting average reach or engagement. Those come from a follower-count estimate in config and are labelled "Estimated reach".
+> - **No compliance waivers.** Disclosure can never be waived through intake. A mis-read sentence would otherwise switch off the compliance rule.
+>
+> A mis-read "no reach guarantee" shows up in the preview as a visible contract note before anything is saved.
+
+> **Likely question:** "What does a brand-new creator's reliability score look like?"
+>
+> There isn't one: "New — no track record yet". Until their first deliverable is due, there's no evidence to score. A barter deal with no reach guarantee is also left out of the performance average rather than counted as 0x.
+
+---
+
 ## 10. Testing
 
-There are 37 `pytest` tests, and CI (`.github/workflows/ci.yml`) runs them plus the frontend build on every push.
+There are 92 `pytest` tests, and CI (`.github/workflows/ci.yml`) runs them plus the frontend build on every push.
 
 - `tests/test_rules.py` maps each problem post to its expected rule. It checks that all 12 rules fire, that the 8 healthy posts stay clean, that the viral winner is not hidden, that the grace period and the 24-hour window are respected, and that severity ordering is correct.
 - `tests/test_reliability.py` checks the reliability score.
@@ -269,7 +297,7 @@ Interviewers often probe here. Admitting a weak spot clearly and explaining the 
 
 ## 12. How to demo it
 
-1. Run `pytest -v` and show all 37 passing.
+1. Run `pytest -v` and show all 92 passing.
 2. Open [post-live-watch.vercel.app](https://post-live-watch.vercel.app) (or `/` locally) on day 1 and press **Advance day** a few times. New flags appear.
 3. Open `/queue`, approve one message, edit another, then show `/decisions`.
 4. Toggle AI off and show the app still works with template text.

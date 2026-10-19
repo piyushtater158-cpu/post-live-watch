@@ -10,6 +10,7 @@ is tried in groups of 3 via OpenRouter's `models` fallback array.
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
@@ -136,17 +137,21 @@ def call_ai(system_prompt: str, user_prompt: str, max_tokens: int = 300, tempera
 
 
 def explain_underperformance(ai_enabled: bool, creator_handle: str, reach: int, min_reach: int,
-                              avg_reach: float, niche: str, format_: str) -> str:
+                              avg_reach: float, niche: str, format_: str, avg_reach_source: str | None = None) -> str:
+    # avg_reach_source == 'estimated' (app/intake.py) means this isn't a measured
+    # number — the narrative must not state it as fact any more confidently than
+    # rule_5's own reason text does (app/rules/detectors.py).
+    avg_caveat = " (estimated from follower count, not measured)" if avg_reach_source == "estimated" else ""
     if ai_enabled:
         text = call_ai(
             "You are a sharp influencer-marketing analyst. In one or two sentences, give the "
             "most likely cause of an underperforming post and one concrete next step. Be specific, no fluff.",
             f"Creator @{creator_handle} ({niche} niche) posted a {format_}. Reach was {reach}, "
-            f"promised minimum was {min_reach}, their average reach is {avg_reach:.0f}.",
+            f"promised minimum was {min_reach}, their average reach is {avg_reach:.0f}{avg_caveat}.",
         )
         if text:
             return text
-    return tpl.underperform_explanation(creator_handle, reach, min_reach, avg_reach)
+    return tpl.underperform_explanation(creator_handle, reach, min_reach, avg_reach, avg_reach_source)
 
 
 def classify_sentiment(ai_enabled: bool, comments: list[dict]) -> dict:
@@ -241,3 +246,112 @@ def generate_brand_daily_report(ai_enabled: bool, day: int, duration: int, live_
             return text
     return tpl.brand_daily_report(day, duration, live_count, due_count, total_reach, promised_reach,
                                    act_now, needs_look, ok)
+
+
+_BRIEF_SYSTEM_PROMPT = """You convert an account manager's shorthand note about a signed \
+creator deal into ONE strict JSON object. Extract only what the note states — never invent \
+facts it doesn't contain.
+
+Output exactly one JSON object, no prose, no markdown code fences, matching this shape:
+{
+  "creator": {"handle": str|null, "raw_name": str|null, "followers": number|null,
+              "tier": "mid"|"micro"|null, "niche": str|null},
+  "deliverables": [
+    {"format": "reel"|"carousel"|"story", "deal_type": "paid"|"barter"|"affiliate"|"paid_plus_bonus",
+     "fee": number|null, "barter_value": number|null, "bonus_threshold": number|null, "bonus_amount": number|null,
+     "min_reach": number|null, "min_reach_explicitly_none": bool,
+     "due_in_days": number|null,
+     "required_tag": str|null, "required_hashtag": str|null, "requires_link_sticker": bool|null,
+     "waived_notes": {"required_tag"?: str, "required_hashtag"?: str, "requires_link_sticker"?: str}}
+  ]
+}
+
+Null semantics (read carefully, this is the entire point of the system):
+- null on required_tag/required_hashtag/requires_link_sticker means "the note doesn't mention
+  this — inherit whatever the campaign already requires."
+- "" (empty string) on required_tag/required_hashtag, or false on requires_link_sticker, means
+  "the note says this was negotiated away." Whenever you emit that, you MUST also add a matching
+  waived_notes entry quoting the note's stated reason (or "Waived at intake — reason not stated"
+  if none was given).
+- min_reach_explicitly_none=true ONLY when the note explicitly says no reach guarantee/minimum
+  was promised. If the note simply never mentions reach, leave min_reach null and
+  min_reach_explicitly_none false — do not assume absence means "explicitly waived."
+
+Hard prohibitions:
+- NEVER output avg_reach, avg_engagement_rate, or any performance/reach number that is not a
+  literal min_reach or fee figure stated in the note. Those are estimated by the server from
+  follower count, never by you.
+- NEVER output required_disclosure at all, and never imply it was waived — disclosure can't be
+  waived through this flow.
+- NEVER compute a calendar date. Only emit due_in_days as an integer day offset; the server does
+  date arithmetic against the campaign's own calendar.
+
+Example 1 — "Signed Priya for 2 reels + 1 story, barter deal worth ₹5k product, no reach \
+guarantee, she's skipping our campaign hashtag due to an exclusivity clause, due in 3 days" ->
+{"creator": {"handle": null, "raw_name": "Priya", "followers": null, "tier": null, "niche": null},
+ "deliverables": [
+   {"format": "reel", "deal_type": "barter", "fee": null, "barter_value": 5000, "bonus_threshold": null,
+    "bonus_amount": null, "min_reach": null, "min_reach_explicitly_none": true, "due_in_days": 3,
+    "required_tag": null, "required_hashtag": "", "requires_link_sticker": null,
+    "waived_notes": {"required_hashtag": "Exclusivity clause with a rival campaign."}},
+   {"format": "reel", "deal_type": "barter", "fee": null, "barter_value": 5000, "bonus_threshold": null,
+    "bonus_amount": null, "min_reach": null, "min_reach_explicitly_none": true, "due_in_days": 3,
+    "required_tag": null, "required_hashtag": "", "requires_link_sticker": null,
+    "waived_notes": {"required_hashtag": "Exclusivity clause with a rival campaign."}},
+   {"format": "story", "deal_type": "barter", "fee": null, "barter_value": 5000, "bonus_threshold": null,
+    "bonus_amount": null, "min_reach": null, "min_reach_explicitly_none": true, "due_in_days": 3,
+    "required_tag": null, "required_hashtag": "", "requires_link_sticker": null,
+    "waived_notes": {"required_hashtag": "Exclusivity clause with a rival campaign."}}
+ ]}
+
+Example 2 — "renew @glow_with_meera for one more reel, ₹55k, 40k min reach" ->
+{"creator": {"handle": "glow_with_meera", "raw_name": null, "followers": null, "tier": null, "niche": null},
+ "deliverables": [
+   {"format": "reel", "deal_type": "paid", "fee": 55000, "barter_value": null, "bonus_threshold": null,
+    "bonus_amount": null, "min_reach": 40000, "min_reach_explicitly_none": false, "due_in_days": null,
+    "required_tag": null, "required_hashtag": null, "requires_link_sticker": null, "waived_notes": {}}
+ ]}"""
+
+
+def _extract_json(text: str | None) -> dict | None:
+    """Defensive — this call has no response_format=json enforcement, so a
+    malformed reply is a NORMAL outcome here, not an error path. Any failure
+    falls through to the deterministic fallback exactly like a missing key."""
+    if not text:
+        return None
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("```")[1]
+        cleaned = cleaned[4:] if cleaned.startswith("json") else cleaned
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        return None
+    try:
+        parsed = json.loads(cleaned[start:end + 1])
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("deliverables"), list):
+        return None
+    return parsed
+
+
+def parse_deal_brief(ai_enabled: bool, brief_text: str, campaign: dict, current_day: int,
+                      duration_days: int, known_handles: list[str]) -> dict:
+    """The one AI task whose output could become an input the rules engine
+    measures against (see app/intake.py's module docstring). The caller NEVER
+    structurally trusts this result — app/intake.py:normalize_draft and
+    validate_draft run on it regardless of which path produced it."""
+    if ai_enabled:
+        user_prompt = (
+            f"Campaign defaults — tag: {campaign['required_tag']}, hashtag: {campaign['required_hashtag']}, "
+            f"disclosure: {campaign['required_disclosure']}, link sticker required by default: "
+            f"{bool(campaign['requires_link_sticker'])}. Today is campaign day {current_day} of {duration_days}. "
+            f"Known existing creator handles: {', '.join(known_handles)}.\n\n"
+            f"Note: {brief_text}"
+        )
+        text = call_ai(_BRIEF_SYSTEM_PROMPT, user_prompt, max_tokens=900, temperature=0.1)
+        parsed = _extract_json(text)
+        if parsed is not None:
+            return {**parsed, "source": "ai", "brief_text": brief_text}
+    fallback = tpl.parse_deal_brief_fallback(brief_text, campaign, current_day, duration_days, known_handles)
+    return {**fallback, "source": "template", "brief_text": brief_text}

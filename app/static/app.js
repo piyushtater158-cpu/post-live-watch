@@ -44,9 +44,38 @@
     if (!ta || !orig || !edit) return;
     edit.disabled = ta.value.trim() === orig.value.trim();
   }
+  // ---- 2b. Same idiom for deal intake (app/templates/_intake_preview.html) --
+  // The intake form has no single message_text/original_message pair — it's
+  // ~15 fields across N deliverable blocks — so "did the AM change anything"
+  // is a whole-form snapshot comparison instead of one field's text. Approve
+  // resolves server-side from original_draft and ignores these inputs
+  // entirely, so there's nothing to reset here on approve (unlike syncEdit).
+  function serializeIntake(form) {
+    var data = new FormData(form);
+    data.delete('action');
+    var parts = [];
+    data.forEach(function (v, k) { parts.push(k + '=' + v); });
+    return parts.join('&');
+  }
+  function syncIntake(form) {
+    var orig = form.querySelector('input[name="original_draft"]');
+    var edit = form.querySelector('button[value="edit"]');
+    if (!orig || !edit) return;
+    if (form.dataset.intakeSnapshot === undefined) {
+      form.dataset.intakeSnapshot = serializeIntake(form);
+    }
+    edit.disabled = serializeIntake(form) === form.dataset.intakeSnapshot;
+  }
+
   document.addEventListener('input', function (e) {
     var form = e.target.closest('form.decide');
-    if (form) syncEdit(form);
+    if (!form) return;
+    syncEdit(form);
+    syncIntake(form);
+  });
+  document.addEventListener('change', function (e) {
+    var form = e.target.closest('form.decide');
+    if (form) syncIntake(form);
   });
   document.addEventListener('click', function (e) {
     var approve = e.target.closest('form.decide button[value="approve"]');
@@ -56,7 +85,12 @@
     var orig = form.querySelector('input[name="original_message"]');
     if (ta && orig) ta.value = orig.value;
   }, true);
-  function syncAll(root) { (root || document).querySelectorAll('form.decide').forEach(syncEdit); }
+  function syncAll(root) {
+    (root || document).querySelectorAll('form.decide').forEach(function (form) {
+      syncEdit(form);
+      syncIntake(form);
+    });
+  }
   document.addEventListener('DOMContentLoaded', function () { syncAll(); });
   document.addEventListener('htmx:afterSwap', function (e) { syncAll(e.target); });
 

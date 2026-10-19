@@ -42,3 +42,32 @@ def test_ai_disabled_skips_the_call_entirely(monkeypatch):
     text = provider.explain_underperformance(False, "handle", 5000, 10000, 9000, "skincare", "reel")
     assert called["hit"] is False
     assert "handle" in text
+
+
+_CAMPAIGN = {
+    "required_tag": "@glowleaf", "required_hashtag": "#GlowWithGlowLeaf",
+    "required_disclosure": "#ad|paid partnership", "requires_link_sticker": 1,
+}
+
+
+def test_parse_deal_brief_falls_back(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    draft = provider.parse_deal_brief(True, "Signed @priya for 1 reel, ₹10k, 20k min reach",
+                                       _CAMPAIGN, current_day=1, duration_days=7, known_handles=["glow_with_meera"])
+    assert draft["source"] == "template"
+    assert draft["creator"]["handle"] == "priya"
+    assert draft["deliverables"][0]["fee"] == 10000
+
+
+def test_parse_deal_brief_ai_disabled_skips_call(monkeypatch):
+    called = {"hit": False}
+
+    def fake_call(*a, **k):
+        called["hit"] = True
+        return "should not happen"
+
+    monkeypatch.setattr(provider, "call_ai", fake_call)
+    draft = provider.parse_deal_brief(False, "Signed @priya for 1 reel, ₹10k",
+                                       _CAMPAIGN, current_day=1, duration_days=7, known_handles=[])
+    assert called["hit"] is False
+    assert draft["source"] == "template"

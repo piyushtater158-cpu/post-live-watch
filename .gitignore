@@ -12,3 +12,4 @@ docs/designs/.gstack-tmp/
 node_modules/
 frontend/dist/
 .vercel/
+*.tsbuildinfo

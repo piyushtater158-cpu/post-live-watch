@@ -144,8 +144,22 @@ th[aria-sort=ascending] .sort svg{transform:rotate(180deg)}
 .decide-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
 .decide label{font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .hintline{font-size:12px;color:var(--muted)}
-textarea{display:block;width:100%;min-height:104px;resize:vertical;font:14px/1.55 var(--sans);color:var(--ink);border:1px solid #C3C9D2;border-radius:10px;padding:12px 14px;background:#fff}
-textarea:focus{outline:2px solid var(--opp-dot);outline-offset:1px;border-color:var(--opp-dot)}
+textarea,input,select{display:block;width:100%;min-height:44px;font:14px/1.55 var(--sans);color:var(--ink);border:1px solid #C3C9D2;border-radius:10px;padding:12px 14px;background:#fff}
+textarea{min-height:104px;resize:vertical}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--opp-dot);outline-offset:1px;border-color:var(--opp-dot)}
+
+/* Deal intake (app/templates/intake.html, _intake_preview.html) */
+.fieldgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px;width:100%}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font:600 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+/* .estflag: a deterministic derived number (a follower-count estimate), never
+   AI-generated — reuses the amber "Needs a look" pair, not the purple .ainote
+   palette, same reasoning as the .contractnote comment above. */
+.estflag{margin:10px 22px;display:flex;gap:10px;align-items:flex-start;background:var(--look-bg);color:var(--look-fg);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5}
+.estflag b{flex:none;font:600 10px/1 var(--mono);letter-spacing:.08em;background:var(--look-fg);color:#fff;padding:4px 6px;border-radius:4px;margin-top:1px}
+/* .vwarn: a blocking server-side validation rule, not AI output either. */
+.vwarn{margin:10px 22px;display:flex;gap:10px;align-items:flex-start;background:var(--act-bg);color:var(--act-fg);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5}
+.vwarn b{flex:none;font:600 10px/1 var(--mono);letter-spacing:.08em;background:var(--act-fg);color:#fff;padding:4px 6px;border-radius:4px;margin-top:1px}
 .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .spacer{flex:1}
 .btn{min-height:44px;padding:0 16px;border-radius:9px;font:600 14px/1 var(--sans);cursor:pointer;border:1px solid #C3C9D2;background:#fff;color:var(--ink);display:inline-flex;align-items:center;gap:8px}
@@ -165,6 +179,8 @@ textarea:focus{outline:2px solid var(--opp-dot);outline-offset:1px;border-color:
 /* ---------- Creator profile ---------- */
 .tags{display:flex;flex-wrap:wrap;gap:8px}
 .tag{font:500 12px/1 var(--mono);color:var(--ink-2);background:#E6E9ED;padding:7px 10px;border-radius:6px}
+.tag.est{background:var(--look-bg);color:var(--look-fg)}
+td .tag.est{margin-left:6px;padding:4px 7px;font-size:11px}
 .verdict{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;border-radius:12px;padding:16px 20px;font-size:17px;font-weight:700}
 .verdict .ico{width:32px;height:32px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
 .verdict.yes{background:var(--ok-bg);color:#0B4A2A;border:1px solid #A7D9BA} .verdict.yes .ico{background:var(--ok-fg)}

@@ -9,6 +9,11 @@ Score (0-100) = 100 * (
 
 Every weight and cap lives here, in one place, matching the brief's demand
 for a "transparent weighted formula" — not a black box.
+
+A campaign with no reach guarantee (barter/affiliate) has no performance ratio,
+so it's left out of the performance average rather than counted as 0x. A
+creator with no history and nothing due yet (a brand-new deal-intake signing)
+has no evidence at all, and gets no score — never a confident "book again".
 """
 
 from __future__ import annotations
@@ -38,9 +43,17 @@ def _current_campaign_point(conn: sqlite3.Connection, creator_id: int, current_d
     flags_count = 0
     delivered_on_time = True
     competitor_conflict = False
+    due_count = 0
 
     for post_row in post_rows:
         result = evaluate_post(conn, post_row["id"], current_day)
+        if result["due_day"] > current_day:
+            # Not due yet (e.g. a deal-intake brief signed for a few days from
+            # now, app/intake.py) — nothing meaningful to measure about a deal
+            # that hasn't started. Must not drag the score down before its own
+            # clock has even begun.
+            continue
+        due_count += 1
         if any(f["rule_id"] in (1, 2) for f in result["flags"]):
             delivered_on_time = False
         flags_count += len(result["flags"])
@@ -58,7 +71,9 @@ def _current_campaign_point(conn: sqlite3.Connection, creator_id: int, current_d
             reach = latest["reach"] if latest else 0
             performance_ratios.append(reach / post_row["min_reach"])
 
-    performance_ratio = sum(performance_ratios) / len(performance_ratios) if performance_ratios else 0.0
+    if due_count == 0:
+        return None
+    performance_ratio = sum(performance_ratios) / len(performance_ratios) if performance_ratios else None
 
     return {
         "delivered_on_time": delivered_on_time,
@@ -91,18 +106,30 @@ def compute_reliability(conn: sqlite3.Connection, creator_id: int, current_day: 
     if current is not None:
         points.append(current)
 
-    n = len(points) or 1
+    if not points:
+        return {
+            "creator_id": creator_id, "score": None, "on_time_rate": None, "avg_performance_ratio": None,
+            "avg_flags_per_campaign": None, "competitor_conflict_rate": None, "campaigns_considered": 0,
+            "book_again_hint": "New — no track record yet", "history": historical,
+        }
+
+    n = len(points)
     on_time_rate = sum(1 for p in points if p["delivered_on_time"]) / n
-    avg_performance_ratio = sum(p["performance_ratio"] for p in points) / n
+    ratios = [p["performance_ratio"] for p in points if p["performance_ratio"] is not None]
+    avg_performance_ratio = sum(ratios) / len(ratios) if ratios else None
     avg_flags_per_campaign = sum(p["flags_count"] for p in points) / n
     competitor_conflict_rate = sum(1 for p in points if p["competitor_conflict"]) / n
 
-    score = 100 * (
-        WEIGHTS["on_time"] * on_time_rate
-        + WEIGHTS["performance"] * min(avg_performance_ratio, PERFORMANCE_CAP) / PERFORMANCE_CAP
-        + WEIGHTS["flags"] * (1 - min(avg_flags_per_campaign / FLAGS_PER_CAMPAIGN_CAP, 1))
-        + WEIGHTS["competitor"] * (1 - competitor_conflict_rate)
-    )
+    components = {
+        "on_time": on_time_rate,
+        "flags": 1 - min(avg_flags_per_campaign / FLAGS_PER_CAMPAIGN_CAP, 1),
+        "competitor": 1 - competitor_conflict_rate,
+    }
+    if avg_performance_ratio is not None:
+        components["performance"] = min(avg_performance_ratio, PERFORMANCE_CAP) / PERFORMANCE_CAP
+    # Without any guaranteed-reach campaign, the remaining weights are rescaled to sum to 1.
+    weight_total = sum(WEIGHTS[k] for k in components)
+    score = 100 * sum(WEIGHTS[k] * v for k, v in components.items()) / weight_total
     score = round(max(0.0, min(100.0, score)), 1)
 
     if score >= 75:
@@ -116,7 +143,7 @@ def compute_reliability(conn: sqlite3.Connection, creator_id: int, current_day: 
         "creator_id": creator_id,
         "score": score,
         "on_time_rate": round(on_time_rate, 2),
-        "avg_performance_ratio": round(avg_performance_ratio, 2),
+        "avg_performance_ratio": round(avg_performance_ratio, 2) if avg_performance_ratio is not None else None,
         "avg_flags_per_campaign": round(avg_flags_per_campaign, 2),
         "competitor_conflict_rate": round(competitor_conflict_rate, 2),
         "campaigns_considered": n,

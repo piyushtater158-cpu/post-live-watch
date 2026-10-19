@@ -26,6 +26,8 @@ class PostContext:
     creator_handle: str
     creator_avg_reach: float
     creator_avg_engagement_rate: float
+    creator_metrics_source: str | None  # None = measured/seeded; 'estimated' = app/intake.py's
+                                         # follower-count estimate, not a real measurement (see rule_5)
     format: str
     fee: float | None
     promised_date: datetime
@@ -70,7 +72,7 @@ def load_post_context(conn: sqlite3.Connection, post_id: int, current_day: int) 
         "d.required_hashtag AS d_required_hashtag, d.requires_link_sticker AS d_requires_link_sticker, "
         "d.deal_type, d.waived_notes, "
         "c.handle AS creator_handle, c.avg_reach AS creator_avg_reach, "
-        "c.avg_engagement_rate AS creator_avg_engagement_rate, "
+        "c.avg_engagement_rate AS creator_avg_engagement_rate, c.metrics_source AS creator_metrics_source, "
         "camp.start_date, camp.duration_days, "
         "camp.required_disclosure AS camp_required_disclosure, camp.required_tag AS camp_required_tag, "
         "camp.required_hashtag AS camp_required_hashtag, camp.requires_link_sticker AS camp_requires_link_sticker, "
@@ -134,6 +136,7 @@ def load_post_context(conn: sqlite3.Connection, post_id: int, current_day: int) 
         creator_handle=row["creator_handle"],
         creator_avg_reach=row["creator_avg_reach"],
         creator_avg_engagement_rate=row["creator_avg_engagement_rate"],
+        creator_metrics_source=row["creator_metrics_source"],
         format=row["format"],
         fee=row["fee"],
         promised_date=datetime.fromisoformat(row["promised_date"]),

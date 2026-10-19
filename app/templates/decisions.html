@@ -26,7 +26,7 @@
         <tr>
           <td class="ts">{{ d.created_at[:16] | replace('T', ' ') }}</td>
           <td class="h">@{{ d.handle }}</td>
-          <td>{% if d.rule_name %}{{ d.rule_name }}{% else %}<span class="null">— no rule</span>{% endif %}</td>
+          <td>{% if d.rule_name %}{{ d.rule_name }}{% elif d.source == 'intake' %}Deal intake{% else %}<span class="null">— no rule</span>{% endif %}</td>
           <td><span class="act-chip a-{{ d.action }}">{{ d.action }}</span></td>
           <td class="msg">{% if d.message_text %}{{ d.message_text }}{% else %}<span class="null">— no message</span>{% endif %}</td>
         </tr>
