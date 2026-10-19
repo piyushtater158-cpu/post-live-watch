@@ -9,3 +9,7 @@ tests/
 .gstack/
 .claude/
 docs/
+frontend/
+handoff/
+node_modules/
+.github/
