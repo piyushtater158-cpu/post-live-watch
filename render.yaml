@@ -13,7 +13,8 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
-    autoDeployTrigger: commit
+    # Deploys come from .github/workflows/ci.yml (deploy-api job), after tests pass.
+    autoDeployTrigger: "off"
     buildFilter:
       ignoredPaths:
         - frontend/**

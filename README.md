@@ -118,7 +118,7 @@ Browser ──> Vercel (frontend/, static React build)
 GitHub Actions keep-alive ──(every 10 min, IST daytime)──> Render /healthz
 ```
 
-- **API on Render**, defined in `render.yaml`: Docker runtime, `free` plan, health check on `/healthz`, auto-deploys on pushes to `main`.
+- **API on Render**, defined in `render.yaml`: Docker runtime, `free` plan, health check on `/healthz`. Render's own auto-deploy is off; CI deploys it (see **CI** below).
   - One-time setup: Render dashboard → **New → Blueprint** → pick this repo → paste `OPENROUTER_API_KEY` (optional; the app runs on template fallbacks without it).
   - The service URL is `https://post-live-watch.onrender.com`.
 - **Frontend on Vercel**: project root is `frontend/`, and pushes to `main` auto-deploy. `frontend/vercel.json` rewrites `/api/*` to the Render URL, so the browser only ever sees one origin (no CORS), and sends every other path to `index.html` for client-side routing.
@@ -131,6 +131,9 @@ GitHub Actions keep-alive ──(every 10 min, IST daytime)──> Render /healt
   - Answers are cached per prompt, and the current day's notes are generated in the background.
   - After an account rate limit (free models allow about 50 requests a day), the app falls back to templates until the limit resets.
 - **CI**: `.github/workflows/ci.yml` runs `pytest` and the frontend build on every push and PR.
+  - On pushes to `main`, a `deploy-api` job then triggers the Render deploy through Render's API and waits for it to go live.
+  - It runs only after both test jobs pass, and is skipped when only `frontend/`, `docs/` or Markdown changed.
+  - It needs the repo secret `RENDER_API_KEY` and the repo variable `RENDER_SERVICE_ID`.
 
 ### Self-hosted alternative (any VM with Docker)
 
