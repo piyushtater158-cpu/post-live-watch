@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision Log · Post-Live Watch</title>
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<!-- BEGIN global chrome → base.html -->
+<div class="sample" role="status">Sample data <span>All creators, posts and figures are synthetic</span></div>
+<header class="nav">
+  <div class="brand"><i aria-hidden="true"></i>Post-Live Watch</div>
+  <nav class="navlinks" aria-label="Screens">
+    <a href="/">Overview</a>
+    <a href="/queue">Flag Queue</a>
+    <a href="/creators">Creators</a>
+    <a href="/report">Brand Report</a>
+    <a href="/decisions" aria-current="page">Decision Log</a>
+  </nav>
+  <div class="controls">
+    <button class="ctl ai" type="button" aria-pressed="true" hx-post="/__TODO__/ai/toggle" hx-target="body">AI <b>ON</b></button>
+    <div class="day" aria-label="Campaign day 4 of 7">
+      <span class="mono" data-field="day">Day 4/7</span>
+      <span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>
+    </div>
+    <button class="ctl primary" type="button" hx-post="/__TODO__/day/advance" hx-target="body">Advance day
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 9 6l-6 4.5z" fill="currentColor"/></svg>
+    </button>
+    <button class="ctl" type="button" hx-post="/__TODO__/day/reset" hx-target="body" hx-confirm="Reset the campaign to day 1? This clears today's state.">Reset to day 1</button>
+  </div>
+</header>
+<!-- END global chrome -->
+
+<main class="wrap">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Audit trail</p>
+      <h1>Decision Log</h1>
+    </div>
+    <p class="meta mono">Newest first</p>
+  </div>
+
+  <div class="tablebox">
+    <table class="top">
+      <thead>
+        <tr>
+          <th scope="col">Time</th>
+          <th scope="col">Creator</th>
+          <th scope="col">Rule</th>
+          <th scope="col">Action</th>
+          <th scope="col">Message sent</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- for d in decisions (newest first)
+             action chip class: approve=a-approve, edit=a-edit, dismiss=a-dismiss
+             rule_name null → <span class="null">— no rule</span>; message_text null → <span class="null">— no message</span> -->
+        <tr>
+          <td class="ts" data-field="created_at">2026-10-19 11:02</td>
+          <td class="h" data-field="handle">@glowwithzoya</td>
+          <td data-field="rule_name">Viral winner</td>
+          <td><span class="act-chip a-approve" data-field="action">approve</span></td>
+          <td class="msg" data-field="message_text">3.4× promised reach in 24h — whitelisting this reel for paid boost.</td>
+        </tr>
+        <tr>
+          <td class="ts">2026-10-19 10:47</td>
+          <td class="h">@meerakhanna.glow</td>
+          <td>Missing #ad disclosure</td>
+          <td><span class="act-chip a-edit">edit</span></td>
+          <td class="msg">Hi Meera! Could you add #ad or switch on the Paid Partnership label in the next hour? Thanks!</td>
+        </tr>
+        <tr>
+          <td class="ts">2026-10-19 10:31</td>
+          <td class="h">@tanvi.tries</td>
+          <td>Brand tag missing</td>
+          <td><span class="act-chip a-dismiss">dismiss</span></td>
+          <td class="msg"><span class="null">— no message</span></td>
+        </tr>
+        <tr>
+          <td class="ts">2026-10-18 18:12</td>
+          <td class="h">@kavya.routines</td>
+          <td><span class="null">— no rule</span></td>
+          <td><span class="act-chip a-dismiss">dismiss</span></td>
+          <td class="msg"><span class="null">— no message</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>

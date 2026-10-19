@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creators · Post-Live Watch</title>
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<!-- BEGIN global chrome → base.html -->
+<div class="sample" role="status">Sample data <span>All creators, posts and figures are synthetic</span></div>
+<header class="nav">
+  <div class="brand"><i aria-hidden="true"></i>Post-Live Watch</div>
+  <nav class="navlinks" aria-label="Screens">
+    <a href="/">Overview</a>
+    <a href="/queue">Flag Queue</a>
+    <a href="/creators" aria-current="page">Creators</a>
+    <a href="/report">Brand Report</a>
+    <a href="/decisions">Decision Log</a>
+  </nav>
+  <div class="controls">
+    <button class="ctl ai" type="button" aria-pressed="true" hx-post="/__TODO__/ai/toggle" hx-target="body">AI <b>ON</b></button>
+    <div class="day" aria-label="Campaign day 4 of 7">
+      <span class="mono" data-field="day">Day 4/7</span>
+      <span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>
+    </div>
+    <button class="ctl primary" type="button" hx-post="/__TODO__/day/advance" hx-target="body">Advance day
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 9 6l-6 4.5z" fill="currentColor"/></svg>
+    </button>
+    <button class="ctl" type="button" hx-post="/__TODO__/day/reset" hx-target="body" hx-confirm="Reset the campaign to day 1? This clears today's state.">Reset to day 1</button>
+  </div>
+</header>
+<!-- END global chrome -->
+
+<main class="wrap">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Roster</p>
+      <h1>Creators</h1>
+    </div>
+    <p class="meta mono">20 creators on GlowLeaf</p>
+  </div>
+
+  <!-- ASSUMED FIELDS (fix #5 — brief doesn't define /creators): handle, tier, niche,
+       reliability.score, reliability.book_again_hint, current_campaign.status.
+       If the list view's context lacks any of these, drop that column. Sortable via app.js. -->
+  <div class="tablebox">
+    <table data-sortable>
+      <thead>
+        <tr>
+          <th scope="col"><button class="sort" type="button">Creator<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+          <th scope="col"><button class="sort" type="button">Tier · niche<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+          <th scope="col" aria-sort="descending"><button class="sort" type="button">Reliability<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+          <th scope="col"><button class="sort" type="button">Book again?<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+          <th scope="col"><button class="sort" type="button">This campaign<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- hint class: "Yes — book again"=yes(3), "Maybe — review flags first"=maybe(2), "Caution — review before rebooking"=caution(1) -->
+        <tr>
+          <td><a href="/creators/{creator_id}" data-field="handle">@glowwithzoya</a></td>
+          <td class="muted"><span data-field="tier">Macro</span> · <span data-field="niche">skincare</span></td>
+          <td data-sort-value="92"><div class="score"><span data-field="reliability.score">92</span><span class="bar" aria-hidden="true"><i style="width:92%"></i></span></div></td>
+          <td data-sort-value="3"><span class="hint yes" data-field="reliability.book_again_hint">Yes — book again</span></td>
+          <td data-sort-value="1"><span class="chip ok" data-field="current_campaign.status">OK</span></td>
+        </tr>
+        <tr>
+          <td><a href="/creators/{creator_id}">@meerakhanna.glow</a></td>
+          <td class="muted">Mid · beauty</td>
+          <td data-sort-value="74"><div class="score">74<span class="bar" aria-hidden="true"><i style="width:74%"></i></span></div></td>
+          <td data-sort-value="2"><span class="hint maybe">Maybe — review flags first</span></td>
+          <td data-sort-value="3"><span class="chip act">Act now</span></td>
+        </tr>
+        <tr>
+          <td><a href="/creators/{creator_id}">@dermdiaries.anu</a></td>
+          <td class="muted">Micro · derm-adjacent</td>
+          <td data-sort-value="48"><div class="score">48<span class="bar" aria-hidden="true"><i style="width:48%"></i></span></div></td>
+          <td data-sort-value="1"><span class="hint caution">Caution — review before rebooking</span></td>
+          <td data-sort-value="3"><span class="chip act">Act now</span></td>
+        </tr>
+        <tr>
+          <td><a href="/creators/{creator_id}">@rohanreviews</a></td>
+          <td class="muted">Mid · reviews</td>
+          <td data-sort-value="66"><div class="score">66<span class="bar" aria-hidden="true"><i style="width:66%"></i></span></div></td>
+          <td data-sort-value="2"><span class="hint maybe">Maybe — review flags first</span></td>
+          <td data-sort-value="2"><span class="chip look">Needs a look</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+<script src="static/app.js"></script>
+</body>
+</html>

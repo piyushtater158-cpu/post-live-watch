@@ -1,21 +1,40 @@
 {% extends "base.html" %}
-{% block title %}Decision Log — Post-Live Watch{% endblock %}
+{% block title %}Decision Log · Post-Live Watch{% endblock %}
 {% block content %}
-<h1>Decision Log</h1>
-<table class="post-table">
-    <thead><tr><th>When</th><th>Creator</th><th>Rule</th><th>Action</th><th>Message</th></tr></thead>
-    <tbody>
-    {% for d in rows %}
+<main class="wrap">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Audit trail</p>
+      <h1>Decision Log</h1>
+    </div>
+    <p class="meta mono">Newest first</p>
+  </div>
+
+  <div class="tablebox">
+    <table class="top">
+      <thead>
         <tr>
-            <td>{{ d.created_at }}</td>
-            <td>@{{ d.handle }}</td>
-            <td>{{ d.rule_name or "—" }}</td>
-            <td><span class="chip chip-{{ d.action }}">{{ d.action }}</span></td>
-            <td>{{ d.message_text or "—" }}</td>
+          <th scope="col">Time</th>
+          <th scope="col">Creator</th>
+          <th scope="col">Rule</th>
+          <th scope="col">Action</th>
+          <th scope="col">Message sent</th>
         </tr>
-    {% else %}
-        <tr><td colspan="5" class="muted">No decisions logged yet.</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
+      </thead>
+      <tbody>
+        {% for d in rows %}
+        <tr>
+          <td class="ts">{{ d.created_at[:16] | replace('T', ' ') }}</td>
+          <td class="h">@{{ d.handle }}</td>
+          <td>{% if d.rule_name %}{{ d.rule_name }}{% else %}<span class="null">— no rule</span>{% endif %}</td>
+          <td><span class="act-chip a-{{ d.action }}">{{ d.action }}</span></td>
+          <td class="msg">{% if d.message_text %}{{ d.message_text }}{% else %}<span class="null">— no message</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5"><span class="null">No decisions yet. Approve, edit or dismiss a card in the Flag Queue.</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main>
 {% endblock %}

@@ -23,30 +23,48 @@ FLAGS_PER_CAMPAIGN_CAP = 3
 
 
 def _current_campaign_point(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict | None:
-    post_row = conn.execute(
+    """Aggregates across EVERY deliverable a creator has in the current campaign —
+    a real deal is often a package ("1 reel + 2 stories"), not a single post, so
+    this can no longer pick an arbitrary one via .fetchone()."""
+    post_rows = conn.execute(
         "SELECT p.id, p.posted_at, d.min_reach FROM posts p "
-        "JOIN deliverables d ON d.id = p.deliverable_id WHERE d.creator_id = ?",
+        "JOIN deliverables d ON d.id = p.deliverable_id WHERE d.creator_id = ? ORDER BY p.id",
         (creator_id,),
-    ).fetchone()
-    if post_row is None:
+    ).fetchall()
+    if not post_rows:
         return None
 
-    result = evaluate_post(conn, post_row["id"], current_day)
-    delivered_on_time = not any(f["rule_id"] in (1, 2) for f in result["flags"])
+    performance_ratios = []
+    flags_count = 0
+    delivered_on_time = True
+    competitor_conflict = False
 
-    latest = conn.execute(
-        "SELECT reach FROM post_snapshots WHERE post_id = ? AND day_number <= ? "
-        "ORDER BY day_number DESC LIMIT 1",
-        (post_row["id"], current_day),
-    ).fetchone()
-    reach = latest["reach"] if latest else 0
-    performance_ratio = reach / post_row["min_reach"] if post_row["min_reach"] else 0.0
+    for post_row in post_rows:
+        result = evaluate_post(conn, post_row["id"], current_day)
+        if any(f["rule_id"] in (1, 2) for f in result["flags"]):
+            delivered_on_time = False
+        flags_count += len(result["flags"])
+        if any(f["rule_id"] == 11 for f in result["flags"]):
+            competitor_conflict = True
+
+        # Only deliverables that carry a reach guarantee contribute to performance —
+        # a barter/no-guarantee deal has nothing to compute a ratio against.
+        if post_row["min_reach"]:
+            latest = conn.execute(
+                "SELECT reach FROM post_snapshots WHERE post_id = ? AND day_number <= ? "
+                "ORDER BY day_number DESC LIMIT 1",
+                (post_row["id"], current_day),
+            ).fetchone()
+            reach = latest["reach"] if latest else 0
+            performance_ratios.append(reach / post_row["min_reach"])
+
+    performance_ratio = sum(performance_ratios) / len(performance_ratios) if performance_ratios else 0.0
 
     return {
         "delivered_on_time": delivered_on_time,
         "performance_ratio": performance_ratio,
-        "flags_count": len(result["flags"]),
-        "competitor_conflict": any(f["rule_id"] == 11 for f in result["flags"]),
+        "flags_count": flags_count,
+        "competitor_conflict": competitor_conflict,
     }
 
 

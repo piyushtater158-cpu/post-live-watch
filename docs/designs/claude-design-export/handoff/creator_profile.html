@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creator Profile · Post-Live Watch</title>
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<!-- BEGIN global chrome → base.html -->
+<div class="sample" role="status">Sample data <span>All creators, posts and figures are synthetic</span></div>
+<header class="nav">
+  <div class="brand"><i aria-hidden="true"></i>Post-Live Watch</div>
+  <nav class="navlinks" aria-label="Screens">
+    <a href="/">Overview</a>
+    <a href="/queue">Flag Queue</a>
+    <a href="/creators" aria-current="page">Creators</a>
+    <a href="/report">Brand Report</a>
+    <a href="/decisions">Decision Log</a>
+  </nav>
+  <div class="controls">
+    <button class="ctl ai" type="button" aria-pressed="true" hx-post="/__TODO__/ai/toggle" hx-target="body">AI <b>ON</b></button>
+    <div class="day" aria-label="Campaign day 4 of 7">
+      <span class="mono" data-field="day">Day 4/7</span>
+      <span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>
+    </div>
+    <button class="ctl primary" type="button" hx-post="/__TODO__/day/advance" hx-target="body">Advance day
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 9 6l-6 4.5z" fill="currentColor"/></svg>
+    </button>
+    <button class="ctl" type="button" hx-post="/__TODO__/day/reset" hx-target="body" hx-confirm="Reset the campaign to day 1? This clears today's state.">Reset to day 1</button>
+  </div>
+</header>
+<!-- END global chrome -->
+
+<main class="wrap">
+  <a class="crumb" href="/creators">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 3 4.5 7l4 4"/></svg>
+    All creators
+  </a>
+
+  <div class="titleblock" style="gap:12px">
+    <h1 class="handle-title" data-field="handle">@dermdiaries.anu</h1>
+    <div class="tags">
+      <span class="tag" data-field="tier">Micro tier</span>
+      <span class="tag" data-field="niche">Derm-adjacent skincare</span>
+    </div>
+  </div>
+
+  <section class="kpis wide" aria-label="Reliability">
+    <div class="kpi">
+      <div class="lbl">Reliability score</div>
+      <div class="val"><span data-field="reliability.score">48</span><small>/100</small></div>
+      <div class="bar" aria-hidden="true"><i style="width:48%"></i></div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">On-time rate</div>
+      <!-- render as percentage: on_time_rate * 100 if stored as 0–1 -->
+      <div class="val" data-field="reliability.on_time_rate">58%</div>
+      <div class="sub">last 12 months</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Avg performance</div>
+      <div class="val" data-field="reliability.avg_performance_ratio">0.82x</div>
+      <div class="sub">actual ÷ promised reach</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Avg flags / campaign</div>
+      <div class="val" data-field="reliability.avg_flags_per_campaign">2.4</div>
+    </div>
+  </section>
+
+  <!-- verdict class from book_again_hint: Yes…=yes, Maybe…=maybe, Caution…=caution -->
+  <div class="verdict caution">
+    <div class="ico" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4v5"/><path d="M8 12h.01"/></svg>
+    </div>
+    <span data-field="reliability.book_again_hint">Caution — review before rebooking</span>
+  </div>
+
+  <!-- if current_campaign -->
+  <div class="panel">
+    <span class="lbl">Current campaign · GlowLeaf</span>
+    <span class="chip act" data-field="current_campaign.status">Act now</span>
+    <p data-field="current_campaign.reason">Caption claims “clinically proven” — not in approved copy</p>
+  </div>
+  <!-- endif -->
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="head" style="align-items:center">
+      <h2>12-month history</h2>
+      <div class="legend">
+        <span><i class="l-conflict" aria-hidden="true"></i>Competitor conflict</span>
+        <span><i class="l-incomplete" aria-hidden="true"></i>Not completed</span>
+      </div>
+    </div>
+    <div class="tablebox">
+      <table class="nowrap">
+        <thead>
+          <tr>
+            <th scope="col">Month</th>
+            <th scope="col">Campaign</th>
+            <th scope="col">On time</th>
+            <th scope="col">Performance</th>
+            <th scope="col">Flags</th>
+            <th scope="col">Fix speed</th>
+            <th scope="col">Competitor conflict</th>
+            <th scope="col">Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- for h in reliability.history
+               tr class: add "conflict" if h.competitor_conflict; add "incomplete" if h.outcome != "completed"
+               fix_speed_days null → "—"; outcome != completed → .outcome.bad -->
+          <tr>
+            <td class="mono" data-field="month">2026-09</td>
+            <td data-field="campaign_name">Hydra Mist Refill</td>
+            <td data-field="delivered_on_time"><span class="yes-t">Yes</span></td>
+            <td class="mono" data-field="performance_ratio">1.08x</td>
+            <td class="mono" data-field="flags_count">1</td>
+            <td class="mono" data-field="fix_speed_days">0.5 d</td>
+            <td data-field="competitor_conflict">—</td>
+            <td><span class="outcome" data-field="outcome">completed</span></td>
+          </tr>
+          <tr class="conflict">
+            <td class="mono">2026-07</td>
+            <td>Sunscreen SPF 50 Drop</td>
+            <td><span class="no-t">No</span></td>
+            <td class="mono">0.64x</td>
+            <td class="mono">4</td>
+            <td class="mono">3 d</td>
+            <td><span class="flagtag">Conflict</span></td>
+            <td><span class="outcome">completed</span></td>
+          </tr>
+          <tr class="incomplete">
+            <td class="mono">2026-03</td>
+            <td>Holi Glow Kit</td>
+            <td><span class="no-t">No</span></td>
+            <td class="mono">—</td>
+            <td class="mono">3</td>
+            <td class="mono">—</td>
+            <td>—</td>
+            <td><span class="outcome bad">cancelled</span></td>
+          </tr>
+          <tr class="conflict incomplete">
+            <td class="mono">2025-11</td>
+            <td>Festive Lip Tint</td>
+            <td><span class="no-t">No</span></td>
+            <td class="mono">0.52x</td>
+            <td class="mono">3</td>
+            <td class="mono">—</td>
+            <td><span class="flagtag">Conflict</span></td>
+            <td><span class="outcome bad">terminated</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script src="static/app.js"></script>
+</body>
+</html>

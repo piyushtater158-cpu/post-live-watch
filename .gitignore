@@ -8,3 +8,7 @@ venv/
 .pytest_cache/
 docs/designs/.gstack-tmp/
 .gstack/
+/handoff/
+node_modules/
+frontend/dist/
+.vercel/

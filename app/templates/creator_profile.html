@@ -1,38 +1,116 @@
 {% extends "base.html" %}
-{% block title %}@{{ creator.handle }} — Post-Live Watch{% endblock %}
+{% block title %}@{{ creator.handle }} · Post-Live Watch{% endblock %}
 {% block content %}
-<h1>@{{ creator.handle }} <span class="muted">({{ creator.tier }} · {{ creator.niche }})</span></h1>
+{% set verdict = reliability.book_again_hint | hint_class %}
+<main class="wrap">
+  <a class="crumb" href="/creators">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 3 4.5 7l4 4"/></svg>
+    All creators
+  </a>
 
-<div class="kpi-row">
-    <div class="kpi"><div class="kpi-value">{{ reliability.score }}/100</div><div class="kpi-label">Reliability score</div></div>
-    <div class="kpi"><div class="kpi-value">{{ (reliability.on_time_rate * 100) | round | int }}%</div><div class="kpi-label">Delivered on time</div></div>
-    <div class="kpi"><div class="kpi-value">{{ reliability.avg_performance_ratio }}x</div><div class="kpi-label">Avg performance vs. promise</div></div>
-    <div class="kpi"><div class="kpi-value">{{ reliability.avg_flags_per_campaign }}</div><div class="kpi-label">Avg flags / campaign</div></div>
-</div>
+  <div class="titleblock" style="gap:12px">
+    <h1 class="handle-title">@{{ creator.handle }}</h1>
+    <div class="tags">
+      <span class="tag">{{ creator.tier | capitalize }} tier</span>
+      <span class="tag">{{ creator.niche }}</span>
+    </div>
+  </div>
 
-<p class="book-again">{{ reliability.book_again_hint }}</p>
+  <section class="kpis wide" aria-label="Reliability">
+    <div class="kpi">
+      <div class="lbl">Reliability score</div>
+      <div class="val"><span>{{ reliability.score | round | int }}</span><small>/100</small></div>
+      <div class="bar" aria-hidden="true"><i style="width:{{ reliability.score }}%"></i></div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">On-time rate</div>
+      <div class="val">{{ (reliability.on_time_rate * 100) | round | int }}%</div>
+      <div class="sub">across {{ reliability.campaigns_considered }} campaigns</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Avg performance</div>
+      <div class="val">{{ "%.2f" | format(reliability.avg_performance_ratio) }}x</div>
+      <div class="sub">actual ÷ promised reach</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Avg flags / campaign</div>
+      <div class="val">{{ "%.1f" | format(reliability.avg_flags_per_campaign) }}</div>
+    </div>
+  </section>
 
-{% if current_campaign %}
-<h2>Current campaign (GlowLeaf launch)</h2>
-<p><span class="chip chip-{{ current_campaign.status | lower | replace(' ', '-') }}">{{ current_campaign.status }}</span> — {{ current_campaign.reason }}</p>
-{% endif %}
+  <div class="verdict {{ verdict }}">
+    <div class="ico" aria-hidden="true">
+      {% if verdict == 'yes' %}
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 6.5 12 13 4.5"/></svg>
+      {% else %}
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4v5"/><path d="M8 12h.01"/></svg>
+      {% endif %}
+    </div>
+    <span>{{ reliability.book_again_hint }}</span>
+  </div>
 
-<h2>12-month rolling history</h2>
-<table class="post-table">
-    <thead><tr><th>Month</th><th>Campaign</th><th>On time?</th><th>Performance</th><th>Flags</th><th>Fix speed (days)</th><th>Competitor conflict</th><th>Outcome</th></tr></thead>
-    <tbody>
-    {% for h in reliability.history %}
-        <tr>
-            <td>{{ h.month }}</td>
-            <td>{{ h.campaign_name }}</td>
-            <td>{{ "Yes" if h.delivered_on_time else "No" }}</td>
-            <td>{{ h.performance_ratio }}x</td>
-            <td>{{ h.flags_count }}</td>
-            <td>{{ h.fix_speed_days if h.fix_speed_days is not none else "—" }}</td>
-            <td>{{ "Yes" if h.competitor_conflict else "No" }}</td>
-            <td>{{ h.outcome }}</td>
-        </tr>
+  {% if current_deliverables %}
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="head"><h2>Current campaign · GlowLeaf</h2></div>
+    {% for d in current_deliverables %}
+    <div class="panel">
+      <span class="lbl">{{ d.deliverable_label }} · {{ d.deal_type | capitalize }}{% if d.deal_type != 'paid' %} deal{% endif %}</span>
+      <span class="chip {{ d.status | status_class }}">{{ d.status }}</span>
+      <p>{{ d.reason }}</p>
+      {% if d.contract_notes %}
+      <div class="contractnote" style="margin:10px 0 0">
+        <b>DEAL</b>
+        <span>{% for n in d.contract_notes %}{{ n.requirement }}: {{ n.note }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+      </div>
+      {% endif %}
+    </div>
     {% endfor %}
-    </tbody>
-</table>
+  </section>
+  {% endif %}
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="head" style="align-items:center">
+      <h2>12-month history</h2>
+      <div class="legend">
+        <span><i class="l-conflict" aria-hidden="true"></i>Competitor conflict</span>
+        <span><i class="l-incomplete" aria-hidden="true"></i>Not completed</span>
+      </div>
+    </div>
+    <div class="tablebox">
+      <table class="nowrap">
+        <thead>
+          <tr>
+            <th scope="col">Month</th>
+            <th scope="col">Campaign</th>
+            <th scope="col">On time</th>
+            <th scope="col">Performance</th>
+            <th scope="col">Flags</th>
+            <th scope="col">Fix speed</th>
+            <th scope="col">Competitor conflict</th>
+            <th scope="col">Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in reliability.history | reverse %}
+          {% set row_classes = [] %}
+          {% if h.competitor_conflict %}{% set _ = row_classes.append('conflict') %}{% endif %}
+          {% if h.outcome != 'completed' %}{% set _ = row_classes.append('incomplete') %}{% endif %}
+          <tr{% if row_classes %} class="{{ row_classes | join(' ') }}"{% endif %}>
+            <td class="mono">{{ h.month }}</td>
+            <td>{{ h.campaign_name }}</td>
+            <td>{% if h.delivered_on_time %}<span class="yes-t">Yes</span>{% else %}<span class="no-t">No</span>{% endif %}</td>
+            <td class="mono">{{ "%.2f" | format(h.performance_ratio) }}x</td>
+            <td class="mono">{{ h.flags_count }}</td>
+            <td class="mono">{% if h.fix_speed_days is not none %}{{ h.fix_speed_days }} d{% else %}—{% endif %}</td>
+            <td>{% if h.competitor_conflict %}<span class="flagtag">Conflict</span>{% else %}—{% endif %}</td>
+            <td><span class="outcome{% if h.outcome != 'completed' %} bad{% endif %}">{{ h.outcome }}</span></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="muted">No campaign history on record.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
 {% endblock %}

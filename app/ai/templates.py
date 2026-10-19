@@ -25,7 +25,12 @@ def paraphrase_check_unavailable() -> str | None:
     return None  # keyword-list match only; no paraphrase detection without AI
 
 
-def boost_suggestion(creator_handle: str, multiplier: float) -> str:
+def boost_suggestion(creator_handle: str, multiplier: float, deal_type: str = "paid") -> str:
+    if deal_type == "affiliate":
+        return (
+            f"@{creator_handle}'s post is performing {multiplier:.1f}x their average. "
+            f"Suggested action: push their affiliate link/code harder while it's hot — this is an affiliate deal, not paid media."
+        )
     return (
         f"@{creator_handle}'s post is performing {multiplier:.1f}x their average. "
         f"Suggested action: consider a paid boost or add to brand whitelisting while it's hot."

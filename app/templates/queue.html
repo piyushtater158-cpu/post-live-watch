@@ -1,56 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Flag Queue — Post-Live Watch{% endblock %}
+{% block title %}Flag Queue · Post-Live Watch{% endblock %}
 {% block content %}
-<h1>Flag Queue <span class="muted">(Act now first)</span></h1>
-
-<div id="queue-list">
-{% for card in cards %}
-    <div class="flag-card status-{{ card.status | lower | replace(' ', '-') }}">
-        <div class="flag-card-header">
-            <span class="chip chip-{{ card.status | lower | replace(' ', '-') }}">{{ card.status }}</span>
-            <a href="/creators/{{ card.creator_id }}"><strong>@{{ card.handle }}</strong></a>
-            <span class="muted">{{ card.format }} · severity {{ card.max_severity }}</span>
-        </div>
-
-        {% for f in card.flags %}
-        <div class="evidence-block">
-            <div><strong>{{ f.rule_name }}</strong> (rule #{{ f.rule_id }}, severity {{ f.severity }})</div>
-            <div>{{ f.reason }}</div>
-            {% if f.ai_note %}<div class="ai-note">🤖 {{ f.ai_note }}</div>{% endif %}
-        </div>
-        {% endfor %}
-
-        {% if card.opportunity_note %}
-        <div class="evidence-block opportunity">
-            <div><strong>🚀 Viral winner</strong></div>
-            <div>{{ card.opportunity_note }}</div>
-        </div>
-        {% endif %}
-
-        {% if card.suggested_message %}
-        <div class="suggested-message">
-            <div class="muted">Suggested message (copy &amp; send manually):</div>
-            <textarea readonly rows="3" id="msg-{{ card.post_id }}">{{ card.suggested_message }}</textarea>
-            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('msg-{{ card.post_id }}').value)">Copy</button>
-        </div>
-        {% endif %}
-
-        {% if card.primary_rule_id %}
-        <form class="decision-form"
-              hx-post="/flags/{{ card.post_id }}/decide"
-              hx-target="#queue-list" hx-swap="outerHTML">
-            <input type="hidden" name="flag_rule_id" value="{{ card.primary_rule_id }}">
-            <textarea name="message_text" rows="2" placeholder="Edit the message before approving (optional)">{{ card.default_message }}</textarea>
-            <div class="decision-buttons">
-                <button name="action" value="approve" class="approve">Approve</button>
-                <button name="action" value="edit" class="edit">Edit &amp; Approve</button>
-                <button name="action" value="dismiss" class="dismiss">Dismiss</button>
-            </div>
-        </form>
-        {% endif %}
+<main class="wrap narrow">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Account manager queue</p>
+      <h1>Flag Queue (Act now first)</h1>
     </div>
-{% else %}
-    <p>No flags right now — everything's clean as of day {{ current_day }}.</p>
-{% endfor %}
-</div>
+  </div>
+
+  {% include "_queue_list.html" %}
+</main>
 {% endblock %}

@@ -21,6 +21,24 @@ app = FastAPI(title="Post-Live Watch")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+STATUS_CLASS = {"Act now": "act", "Needs a look": "look", "OK": "ok"}
+STATUS_RANK = {"Act now": 3, "Needs a look": 2, "OK": 1}
+HINT_RANK = {"yes": 3, "maybe": 2, "caution": 1}
+
+
+def _hint_class(hint: str) -> str:
+    if hint.startswith("Yes"):
+        return "yes"
+    if hint.startswith("Maybe"):
+        return "maybe"
+    return "caution"
+
+
+templates.env.filters["status_class"] = lambda s: STATUS_CLASS.get(s, "ok")
+templates.env.filters["hint_class"] = _hint_class
+templates.env.filters["status_rank"] = lambda s: STATUS_RANK.get(s, 0)
+templates.env.filters["hint_rank"] = lambda h: HINT_RANK[_hint_class(h)]
+
 
 @app.on_event("startup")
 def ensure_schema() -> None:
@@ -39,28 +57,28 @@ def _state(conn: sqlite3.Connection) -> dict:
 def overview(request: Request, conn: sqlite3.Connection = Depends(get_db)):
     st = _state(conn)
     data = dashboard.get_overview(conn, st["current_day"])
-    return templates.TemplateResponse("index.html", {"request": request, **st, **data})
+    return templates.TemplateResponse("index.html", {"request": request, "active_nav": "overview", **st, **data})
 
 
 @app.get("/queue", response_class=HTMLResponse)
 def queue(request: Request, conn: sqlite3.Connection = Depends(get_db)):
     st = _state(conn)
     cards = dashboard.get_flag_queue(conn, st["current_day"], st["ai_enabled"])
-    return templates.TemplateResponse("queue.html", {"request": request, **st, "cards": cards})
+    return templates.TemplateResponse("queue.html", {"request": request, "active_nav": "queue", **st, "cards": cards})
 
 
 @app.get("/creators", response_class=HTMLResponse)
 def creators_list(request: Request, conn: sqlite3.Connection = Depends(get_db)):
     st = _state(conn)
-    creators = dashboard.get_creator_list(conn)
-    return templates.TemplateResponse("creators.html", {"request": request, **st, "creators": creators})
+    creators = dashboard.get_creator_list(conn, st["current_day"])
+    return templates.TemplateResponse("creators.html", {"request": request, "active_nav": "creators", **st, "creators": creators})
 
 
 @app.get("/creators/{creator_id}", response_class=HTMLResponse)
 def creator_profile(request: Request, creator_id: int, conn: sqlite3.Connection = Depends(get_db)):
     st = _state(conn)
     profile = dashboard.get_creator_profile(conn, creator_id, st["current_day"])
-    return templates.TemplateResponse("creator_profile.html", {"request": request, **st, **profile})
+    return templates.TemplateResponse("creator_profile.html", {"request": request, "active_nav": "creators", **st, **profile})
 
 
 @app.get("/report", response_class=HTMLResponse)
@@ -76,6 +94,7 @@ def decide(
     post_id: int,
     action: str = Form(...),
     message_text: str = Form(""),
+    original_message: str = Form(""),
     flag_rule_id: int = Form(0),
     conn: sqlite3.Connection = Depends(get_db),
 ):
@@ -101,13 +120,22 @@ def decide(
             )
             flag_row = {"id": cur.lastrowid}
 
+    # approve = the suggestion exactly as written (original_message); edit = whatever the
+    # AM actually typed (message_text); dismiss = no message at all.
+    if action == "approve":
+        stored_message = original_message
+    elif action == "edit":
+        stored_message = message_text
+    else:
+        stored_message = None
+
     conn.execute(
         "INSERT INTO decisions (flag_id, post_id, action, message_text, created_at) VALUES (?, ?, ?, ?, ?)",
-        (flag_row["id"] if flag_row else None, post_id, action, message_text, datetime.now(timezone.utc).isoformat()),
+        (flag_row["id"] if flag_row else None, post_id, action, stored_message, datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
     cards = dashboard.get_flag_queue(conn, st["current_day"], st["ai_enabled"])
-    return templates.TemplateResponse("queue.html", {"request": request, **st, "cards": cards})
+    return templates.TemplateResponse("_queue_list.html", {"request": request, **st, "cards": cards})
 
 
 @app.get("/decisions", response_class=HTMLResponse)
@@ -125,7 +153,7 @@ def decision_log(request: Request, conn: sqlite3.Connection = Depends(get_db)):
             "ORDER BY dec.created_at DESC"
         ).fetchall()
     ]
-    return templates.TemplateResponse("decisions.html", {"request": request, **st, "rows": rows})
+    return templates.TemplateResponse("decisions.html", {"request": request, "active_nav": "decisions", **st, "rows": rows})
 
 
 @app.post("/simulate/advance-day")

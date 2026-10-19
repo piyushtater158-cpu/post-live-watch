@@ -26,12 +26,13 @@ def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
 
     total_reach = 0
     total_promised = 0
+    guaranteed_count = 0  # deliverables that actually carry a reach guarantee (excludes barter/affiliate)
     for r in results:
-        row = conn.execute(
-            "SELECT d.min_reach, p.id as pid FROM posts p JOIN deliverables d ON d.id = p.deliverable_id "
-            "WHERE p.id = ?", (r["post_id"],),
-        ).fetchone()
-        total_promised += row["min_reach"]
+        # min_reach is resolved per-deal (app/rules/contract.py) — barter/affiliate
+        # deliverables have none, and must not inflate the brand-facing promised figure.
+        if r["min_reach"]:
+            total_promised += r["min_reach"]
+            guaranteed_count += 1
         latest = conn.execute(
             "SELECT reach FROM post_snapshots WHERE post_id = ? AND day_number <= ? "
             "ORDER BY day_number DESC LIMIT 1", (r["post_id"], current_day),
@@ -52,10 +53,51 @@ def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
         "total_due": total_due,
         "total_reach": total_reach,
         "total_promised": total_promised,
+        "guaranteed_count": guaranteed_count,
+        "posts_live_pct": round(100 * posts_live / total_due) if total_due else 0,
         "by_status": by_status,
         "opportunities": opportunities,
         "rows": rows,
     }
+
+
+def _creator_deliverables(conn: sqlite3.Connection, creator_id: int, current_day: int) -> list[dict]:
+    """Every one of a creator's deliverables in the current campaign, evaluated —
+    a real deal is often a package ("1 reel + 2 stories"), so this fetches ALL of
+    them rather than picking an arbitrary one via .fetchone() the way the single-
+    deliverable assumption used to."""
+    post_rows = conn.execute(
+        "SELECT p.id FROM posts p JOIN deliverables d ON d.id = p.deliverable_id "
+        "WHERE d.creator_id = ? ORDER BY d.promised_date, p.id",
+        (creator_id,),
+    ).fetchall()
+    results = [evaluate_post(conn, r["id"], current_day) for r in post_rows]
+
+    # Human label ("Story 2 of 3"), derived by grouping on format in promised
+    # order — never stored, so it can't drift the way posts.is_story did.
+    counts_by_format: dict[str, int] = {}
+    for r in results:
+        counts_by_format[r["format"]] = counts_by_format.get(r["format"], 0) + 1
+    seen: dict[str, int] = {}
+    for r in results:
+        seen[r["format"]] = seen.get(r["format"], 0) + 1
+        total = counts_by_format[r["format"]]
+        r["deliverable_label"] = (
+            r["format"].capitalize() if total == 1
+            else f"{r['format'].capitalize()} {seen[r['format']]} of {total}"
+        )
+    return results
+
+
+def _rollup_campaign_status(deliverables: list[dict]) -> dict | None:
+    """Worst status across a creator's whole package, plus a delivered counter —
+    the honest replacement for reporting one arbitrary deliverable as 'the'
+    campaign."""
+    if not deliverables:
+        return None
+    worst = min(deliverables, key=lambda r: STATUS_ORDER[r["status"]])
+    delivered = sum(1 for r in deliverables if not any(f["rule_id"] == 1 for f in r["flags"]))
+    return {**worst, "delivered": delivered, "total_deliverables": len(deliverables)}
 
 
 def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool) -> list[dict]:
@@ -99,7 +141,9 @@ def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool)
         opportunity_note = None
         if r["opportunities"]:
             opp = r["opportunities"][0]
-            opportunity_note = ai.suggest_boost(ai_enabled, cinfo["handle"], opp["evidence"]["multiplier"], cinfo["niche"])
+            opportunity_note = ai.suggest_boost(
+                ai_enabled, cinfo["handle"], opp["evidence"]["multiplier"], cinfo["niche"], r["deal_type"],
+            )
 
         # The rule a decision form submits against — a problem flag takes priority,
         # but an opportunity-only card (e.g. a viral winner) still needs one so its
@@ -120,24 +164,29 @@ def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool)
     return cards
 
 
-def get_creator_list(conn: sqlite3.Connection) -> list[dict]:
-    return [dict(r) for r in conn.execute("SELECT id, handle, tier, niche FROM creators ORDER BY handle").fetchall()]
+def get_creator_list(conn: sqlite3.Connection, current_day: int) -> list[dict]:
+    creators = []
+    for r in conn.execute("SELECT id, handle, tier, niche FROM creators ORDER BY handle").fetchall():
+        deliverables = _creator_deliverables(conn, r["id"], current_day)
+        creators.append({
+            **dict(r),
+            "reliability": compute_reliability(conn, r["id"], current_day),
+            "current_campaign": _rollup_campaign_status(deliverables),
+        })
+    creators.sort(key=lambda c: -c["reliability"]["score"])
+    return creators
 
 
 def get_creator_profile(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict:
     creator = dict(conn.execute("SELECT * FROM creators WHERE id = ?", (creator_id,)).fetchone())
     reliability = compute_reliability(conn, creator_id, current_day)
-
-    post_row = conn.execute(
-        "SELECT p.id FROM posts p JOIN deliverables d ON d.id = p.deliverable_id WHERE d.creator_id = ?",
-        (creator_id,),
-    ).fetchone()
-    current_result = evaluate_post(conn, post_row["id"], current_day) if post_row else None
+    deliverables = _creator_deliverables(conn, creator_id, current_day)
 
     return {
         "creator": creator,
         "reliability": reliability,
-        "current_campaign": current_result,
+        "current_campaign": _rollup_campaign_status(deliverables),
+        "current_deliverables": deliverables,
     }
 
 

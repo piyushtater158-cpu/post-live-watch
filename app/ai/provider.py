@@ -104,16 +104,20 @@ def detect_paraphrased_claim(ai_enabled: bool, original_caption: str | None, cur
     return None
 
 
-def suggest_boost(ai_enabled: bool, creator_handle: str, multiplier: float, niche: str) -> str:
+def suggest_boost(ai_enabled: bool, creator_handle: str, multiplier: float, niche: str, deal_type: str = "paid") -> str:
     if ai_enabled:
+        deal_hint = (
+            "This is an affiliate deal, so lean on pushing the affiliate link/code rather than a paid boost."
+            if deal_type == "affiliate" else ""
+        )
         text = call_ai(
             "You are a performance marketing strategist. In one sentence, suggest a concrete boost "
             "or whitelisting action for a viral organic post.",
-            f"@{creator_handle} ({niche}) is at {multiplier:.1f}x their average reach.",
+            f"@{creator_handle} ({niche}) is at {multiplier:.1f}x their average reach. {deal_hint}".strip(),
         )
         if text:
             return text
-    return tpl.boost_suggestion(creator_handle, multiplier)
+    return tpl.boost_suggestion(creator_handle, multiplier, deal_type)
 
 
 def generate_nudge_message(ai_enabled: bool, creator_handle: str, rule_name: str, reason: str) -> str:

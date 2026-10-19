@@ -51,16 +51,18 @@ def rule_2_posted_late(ctx: PostContext, t: dict) -> dict | None:
 
 
 def rule_3_missing_disclosure(ctx: PostContext, t: dict) -> dict | None:
+    if not ctx.required_disclosure:
+        return None  # waived in this deal's contract — see ctx.contract_notes
     if not ctx.caption:
         return None
     cap = ctx.caption.lower()
-    has_disclosure = "#ad" in cap or "paid partnership" in cap
+    has_disclosure = any(token in cap for token in ctx.required_disclosure)
     if has_disclosure:
         return None
     return {
         "rule_id": 3, "rule_name": "Missing disclosure", "polarity": NEGATIVE,
         "severity": _sev(t, 3),
-        "reason": f"Caption has no {ctx.required_disclosure} label.",
+        "reason": f"Caption has no {' or '.join(ctx.required_disclosure)} label.",
         "evidence": {"caption": ctx.caption},
     }
 
@@ -70,11 +72,15 @@ def rule_4_missing_tag_link_hashtag(ctx: PostContext, t: dict) -> dict | None:
         return None
     cap = ctx.caption.lower()
     missing = []
-    if ctx.required_tag.lower() not in cap:
+    # Each check is independently skippable: a '' tag/hashtag means it was
+    # negotiated out of this deal (see ctx.contract_notes), and the link
+    # sticker is only required when the resolved contract says so — it's a
+    # Story-only IG feature, so reels/carousels never need one by default.
+    if ctx.required_tag and ctx.required_tag.lower() not in cap:
         missing.append(f"tag {ctx.required_tag}")
-    if ctx.required_hashtag.lower() not in cap:
+    if ctx.required_hashtag and ctx.required_hashtag.lower() not in cap:
         missing.append(f"hashtag {ctx.required_hashtag}")
-    if not ctx.link_sticker_present:
+    if ctx.requires_link_sticker and not ctx.link_sticker_present:
         missing.append("link sticker")
     if not missing:
         return None
@@ -90,6 +96,8 @@ def rule_5_underperforming(ctx: PostContext, t: dict) -> dict | None:
     latest = ctx.latest_snapshot
     if latest is None:
         return None
+    if ctx.min_reach is None:
+        return None  # no reach guarantee was negotiated for this deal (e.g. barter) — nothing to underperform against
     reach = latest["reach"]
     promise_cutoff = t["underperform_pct_of_promise"] * ctx.min_reach
     avg_cutoff = t["underperform_pct_of_creator_avg"] * ctx.creator_avg_reach

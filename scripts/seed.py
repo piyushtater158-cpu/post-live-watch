@@ -27,9 +27,28 @@ CAMPAIGN_START = datetime(2026, 9, 1, 9, 0, 0)
 DURATION_DAYS = 7
 
 BANNED_CLAIMS = ["cures acne", "100% natural", "dermatologist approved"]
-REQUIRED_DISCLOSURE = "#ad or Paid Partnership"
+REQUIRED_DISCLOSURE = "#ad|paid partnership"  # '|'-separated accepted tokens; resolved in app/rules/contract.py
 REQUIRED_TAG = "@glowleaf"
 REQUIRED_HASHTAG = "#GlowWithGlowLeaf"
+
+# Per-deliverable negotiated overrides on the campaign brief above. Absent
+# keys inherit the campaign default (resolved in app/rules/contract.py).
+# '' on required_tag/required_hashtag means that requirement was waived
+# entirely for this deal — different from "inherit", which is simply absent
+# from this dict.
+DELIVERABLE_OVERRIDES: dict[int, dict] = {
+    5: {  # Barter deal: product given, no cash fee, no reach guarantee negotiated.
+        "deal_type": "barter", "fee": None, "min_reach": None, "barter_value": 4000,
+    },
+    14: {  # Hashtag waived for this deal — demonstrates a negotiated term
+          # coexisting with real flags (this post already fires rules 3 and 9).
+        "required_hashtag": "",
+        "waived_notes": {"required_hashtag": "Negotiated out — exclusivity clause with a rival campaign this month."},
+    },
+    20: {  # Affiliate deal: no cash fee, no reach guarantee, paid via commission instead.
+        "deal_type": "affiliate", "fee": None, "min_reach": None,
+    },
+}
 
 COMPLIANT_CAPTION = (
     "New skincare era unlocked ✨ Obsessed with how my skin feels after using "
@@ -120,7 +139,11 @@ def build_post(cid: int) -> dict:
         "caption": COMPLIANT_CAPTION,
         "original_caption": COMPLIANT_CAPTION,
         "caption_edited_at": None,
-        "link_sticker_present": 1,
+        # Link stickers are a Story-only IG feature — a reel/carousel can't
+        # carry one at all, so defaulting this to 1 on every format (as the
+        # old seed did) was factually wrong data hiding rule 4's unconditional
+        # link-sticker check. Only stories get it by default now.
+        "link_sticker_present": 1 if is_story else 0,
         "permalink": f"https://instagram.com/p/sample-{cid}/",
         "is_story": int(is_story),
         "screenshot_uploaded": 1,
@@ -315,10 +338,20 @@ def seed(reset: bool = False) -> None:
         )
 
     for cid in range(1, 21):
+        override = DELIVERABLE_OVERRIDES.get(cid, {})
+        waived_notes = override.get("waived_notes")
         conn.execute(
-            "INSERT INTO deliverables (id, campaign_id, creator_id, format, fee, promised_date, min_reach) "
-            "VALUES (?, 1, ?, ?, ?, ?, ?)",
-            (cid, cid, FORMAT[cid], FEES[cid], iso(at(1, 9, 0)), MIN_REACH[cid]),
+            "INSERT INTO deliverables (id, campaign_id, creator_id, format, fee, promised_date, min_reach, "
+            "required_disclosure, required_tag, required_hashtag, requires_link_sticker, "
+            "deal_type, barter_value, bonus_threshold, bonus_amount, waived_notes) "
+            "VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (cid, cid, FORMAT[cid],
+             override.get("fee", FEES[cid]), iso(at(1, 9, 0)), override.get("min_reach", MIN_REACH[cid]),
+             override.get("required_disclosure"), override.get("required_tag"), override.get("required_hashtag"),
+             override.get("requires_link_sticker"),
+             override.get("deal_type", "paid"), override.get("barter_value"),
+             override.get("bonus_threshold"), override.get("bonus_amount"),
+             json.dumps(waived_notes) if waived_notes else None),
         )
 
         built = build_post(cid)
@@ -351,6 +384,40 @@ def seed(reset: bool = False) -> None:
                 (cid, h["campaign_name"], h["month"], h["delivered_on_time"], h["performance_ratio"],
                  h["flags_count"], h["fix_speed_days"], h["competitor_conflict"], h["outcome"]),
             )
+
+    # Creator 1's real deal is a package — "1 reel + 2 stories" — not the single
+    # post the old one-deliverable-per-creator assumption could represent.
+    # Demonstrates that a creator's rolled-up status can go to "Needs a look"
+    # (via rule 10 on the second story, once its 24h proof window passes) even
+    # while their own reel (post id 1) stays clean — the exact case the old
+    # unordered .fetchone() in dashboard.py/reliability.py would have hidden
+    # by silently picking just one of the three.
+    creator1_avg_reach = CREATORS[0]["avg_reach"]
+    creator1_engagement_rate = CREATORS[0]["avg_engagement_rate"]
+    extra_deliverables = [
+        {"id": 21, "screenshot_uploaded": 1},  # healthy story
+        {"id": 22, "screenshot_uploaded": 0},  # no proof uploaded -> rule 10 fires once 24h have passed
+    ]
+    for extra in extra_deliverables:
+        did = extra["id"]
+        conn.execute(
+            "INSERT INTO deliverables (id, campaign_id, creator_id, format, fee, promised_date, min_reach) "
+            "VALUES (?, 1, 1, 'story', 6000, ?, 9000)",
+            (did, iso(at(1, 9, 0))),
+        )
+        reach = round(creator1_avg_reach * 0.3)
+        likes, cmts, saves, shares = metrics_from_reach(reach, creator1_engagement_rate)
+        conn.execute(
+            "INSERT INTO posts (id, deliverable_id, posted_at, caption, original_caption, caption_edited_at, "
+            "link_sticker_present, permalink, is_story, screenshot_uploaded, deleted_at_day, competitor_mentioned_day) "
+            "VALUES (?, ?, ?, NULL, NULL, NULL, 1, ?, 1, ?, NULL, NULL)",
+            (did, did, iso(at(1, 10, 0)), f"https://instagram.com/stories/sample-{did}/", extra["screenshot_uploaded"]),
+        )
+        conn.execute(
+            "INSERT INTO post_snapshots (post_id, day_number, reach, likes, comments_count, saves, shares, still_live) "
+            "VALUES (?, 1, ?, ?, ?, ?, ?, 1)",
+            (did, reach, likes, cmts, saves, shares),
+        )
 
     set_state(conn, "current_day", str(DURATION_DAYS))
     set_state(conn, "ai_enabled", "1")

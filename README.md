@@ -29,6 +29,24 @@ The rules engine is built and `pytest`-verified **before any UI code** — see `
 
 All thresholds, severities, and the Act now / Needs a look / OK cutoffs live in `config/thresholds.yaml` — nothing is hardcoded in the detector code (`app/rules/detectors.py`).
 
+## The campaign brief is a default, not a law
+
+A real creator deal negotiates things away from the campaign brief: a waived hashtag, a barter
+payment with no cash fee, no reach guarantee at all. `deliverables` carries nullable overrides
+(`required_disclosure`, `required_tag`, `required_hashtag`, `requires_link_sticker`, `deal_type`,
+`min_reach`, …) that are resolved against the campaign default in one place —
+`app/rules/contract.py:resolve_terms` — before any detector runs. No detector in
+`detectors.py` knows a negotiation happened; it only ever sees the resolved result via
+`PostContext`. When a requirement doesn't apply, the reason shows up as a `contract_notes` entry
+on the card (visible in `/queue` and `/creators/<id>`) instead of the rule just going quietly
+silent.
+
+This also means a creator's deal can be a package — "1 reel + 2 stories" — not one deliverable.
+`app/dashboard.py:_creator_deliverables` evaluates every deliverable a creator has and
+`_rollup_campaign_status` reports the worst status across the package plus a delivered counter,
+so `/creators` and `/creators/<id>` never silently collapse a multi-part deal down to one
+arbitrarily-picked post the way an unordered `.fetchone()` used to.
+
 ## Running it locally
 
 ```bash

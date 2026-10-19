@@ -1,39 +1,43 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>{% block title %}Post-Live Watch{% endblock %}</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Post-Live Watch{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-    <div class="sample-banner">SAMPLE DATA — synthetic GlowLeaf campaign, no real Instagram data</div>
-    <nav class="topnav">
-        <div class="brand">Post-Live Watch</div>
-        <div class="links">
-            <a href="/">Overview</a>
-            <a href="/queue">Flag Queue</a>
-            <a href="/creators">Creators</a>
-            <a href="/report">Brand Report</a>
-            <a href="/decisions">Decision Log</a>
-        </div>
-        <div class="controls">
-            <form method="post" action="/settings/ai-toggle" style="display:inline">
-                <button type="submit" class="pill {{ 'on' if ai_enabled else 'off' }}">
-                    AI {{ 'ON' if ai_enabled else 'OFF' }}
-                </button>
-            </form>
-            <span class="day-indicator">Day {{ current_day }}/{{ duration_days }}</span>
-            <form method="post" action="/simulate/advance-day" style="display:inline">
-                <button type="submit" {% if current_day >= duration_days %}disabled{% endif %}>Advance day ▶</button>
-            </form>
-            <form method="post" action="/simulate/reset-day" style="display:inline">
-                <button type="submit" class="secondary">Reset to day 1</button>
-            </form>
-        </div>
-    </nav>
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+<div class="sample" role="status">Sample data <span>All creators, posts and figures are synthetic</span></div>
+<header class="nav">
+  <div class="brand"><i aria-hidden="true"></i>Post-Live Watch</div>
+  <nav class="navlinks" aria-label="Screens">
+    <a href="/" {% if active_nav == 'overview' %}aria-current="page"{% endif %}>Overview</a>
+    <a href="/queue" {% if active_nav == 'queue' %}aria-current="page"{% endif %}>Flag Queue</a>
+    <a href="/creators" {% if active_nav == 'creators' %}aria-current="page"{% endif %}>Creators</a>
+    <a href="/report" {% if active_nav == 'report' %}aria-current="page"{% endif %}>Brand Report</a>
+    <a href="/decisions" {% if active_nav == 'decisions' %}aria-current="page"{% endif %}>Decision Log</a>
+  </nav>
+  <div class="controls">
+    <form method="post" action="/settings/ai-toggle" style="display:contents">
+      <button class="ctl ai" type="submit" aria-pressed="{{ 'true' if ai_enabled else 'false' }}">AI <b>{{ 'ON' if ai_enabled else 'OFF' }}</b></button>
+    </form>
+    <div class="day" aria-label="Campaign day {{ current_day }} of {{ duration_days }}">
+      <span class="mono">Day {{ current_day }}/{{ duration_days }}</span>
+      <span class="pips" aria-hidden="true">{% for i in range(duration_days) %}<i{% if i < current_day %} class="on"{% endif %}></i>{% endfor %}</span>
+    </div>
+    <form method="post" action="/simulate/advance-day" style="display:contents">
+      <button class="ctl primary" type="submit" {% if current_day >= duration_days %}disabled{% endif %}>Advance day
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 9 6l-6 4.5z" fill="currentColor"/></svg>
+      </button>
+    </form>
+    <form method="post" action="/simulate/reset-day" style="display:contents" onsubmit="return confirm('Reset the campaign to day 1? This clears today\'s state.')">
+      <button class="ctl" type="submit">Reset to day 1</button>
+    </form>
+  </div>
+</header>
+
+{% block content %}{% endblock %}
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<script src="/static/app.js"></script>
 </body>
 </html>

@@ -51,6 +51,19 @@ Build and `pytest`-verify the rules/scoring engine, config-driven thresholds, re
 ## Recommended Approach
 **Approach C (Engine-First)**, with the backend/infra choices from the Premises section: FastAPI owns the rules engine, data model, and the single OpenRouter-backed AI function (template fallback when AI is off); SQLite as the persistent store; n8n limited to the optional daily brand-report delivery trigger on the user's existing instance; the whole stack self-hosted via Docker on the user's Oracle Cloud VM; frontend screens designed externally by Claude Design as static HTML/CSS and wired into Jinja2+HTMX templates last.
 
+## Decisions log
+- **Campaign brief is a default, not a law (2026-10-19).** Raised via `/office-hours`: the original
+  schema treated `campaigns.required_disclosure/required_tag/required_hashtag/requires_link_sticker`
+  as universal across every creator, and every consumer picked exactly one deliverable per creator
+  via an unordered `.fetchone()`. Real deals negotiate terms away, pay differently (barter,
+  affiliate), and bundle multiple deliverables. Fixed by making `deliverables` carry nullable
+  overrides resolved in one place (`app/rules/contract.py`), with the resolution surfaced as
+  `contract_notes` rather than a rule silently not firing, and by fetching every deliverable a
+  creator has instead of an arbitrary one. This also fixed three live bugs the old model was
+  hiding: a dead `requires_link_sticker` column, rule 3 ignoring the `required_disclosure` field
+  it claimed to check, and a hardcoded reach-floor check that would misflag barter creators who
+  never promised a reach number. See `README.md`'s "The campaign brief is a default, not a law".
+
 ## Open Questions
 - Exact OpenRouter model card (deferred by the user — wire it behind `OPENROUTER_MODEL` env var, pick a sensible cheap/fast default, confirm later).
 - Reverse proxy / subdomain scheme on the Oracle VM (Caddy vs nginx vs Cloudflare Tunnel — whatever the existing n8n setup already uses).

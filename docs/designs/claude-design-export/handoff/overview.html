@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campaign Overview · Post-Live Watch</title>
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<!-- BEGIN global chrome → base.html (same block on every AM screen; only aria-current moves) -->
+<div class="sample" role="status">Sample data <span>All creators, posts and figures are synthetic</span></div>
+<header class="nav">
+  <div class="brand"><i aria-hidden="true"></i>Post-Live Watch</div>
+  <nav class="navlinks" aria-label="Screens">
+    <a href="/" aria-current="page">Overview</a>
+    <a href="/queue">Flag Queue</a>
+    <a href="/creators">Creators</a>
+    <a href="/report">Brand Report</a>
+    <a href="/decisions">Decision Log</a>
+  </nav>
+  <div class="controls">
+    <!-- TODO(routes): the brief does not name these three endpoints — replace /__TODO__/… with the real ones -->
+    <button class="ctl ai" type="button" aria-pressed="true" hx-post="/__TODO__/ai/toggle" hx-target="body">AI <b>ON</b></button>
+    <div class="day" aria-label="Campaign day 4 of 7">
+      <span class="mono" data-field="day">Day 4/7</span>
+      <!-- 7 pips; class="on" for i < day -->
+      <span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>
+    </div>
+    <button class="ctl primary" type="button" hx-post="/__TODO__/day/advance" hx-target="body">Advance day
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 9 6l-6 4.5z" fill="currentColor"/></svg>
+    </button>
+    <button class="ctl" type="button" hx-post="/__TODO__/day/reset" hx-target="body" hx-confirm="Reset the campaign to day 1? This clears today's state.">Reset to day 1</button>
+  </div>
+</header>
+<!-- END global chrome -->
+
+<main class="wrap">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Campaign overview</p>
+      <h1>GlowLeaf Vitamin C Serum Launch — Campaign Overview</h1>
+    </div>
+    <p class="meta mono">20 creators · 7-day window</p>
+  </div>
+
+  <section class="kpis" aria-label="Campaign KPIs">
+    <div class="kpi">
+      <div class="lbl">Posts live</div>
+      <div class="val"><span data-field="posts_live">14</span><small>/<span data-field="total_due">20</span></small></div>
+      <!-- width = posts_live / total_due * 100 -->
+      <div class="bar" aria-hidden="true"><i style="width:70%"></i></div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Reach vs promised</div>
+      <div class="val" data-field="total_reach">1,284,600</div>
+      <div class="sub">of <span class="mono" data-field="total_promised">2,000,000</span> promised</div>
+    </div>
+    <div class="kpi k-act">
+      <div class="lbl"><i class="dot act" aria-hidden="true"></i>Act now</div>
+      <div class="val" data-field='by_status["Act now"]'>3</div>
+      <div class="sub">posts need action today</div>
+    </div>
+    <div class="kpi k-look">
+      <div class="lbl"><i class="dot look" aria-hidden="true"></i>Needs a look</div>
+      <div class="val" data-field='by_status["Needs a look"]'>5</div>
+      <div class="sub">review when free</div>
+    </div>
+    <div class="kpi k-ok">
+      <div class="lbl"><i class="dot ok" aria-hidden="true"></i>OK</div>
+      <div class="val" data-field='by_status["OK"]'>12</div>
+      <div class="sub">on track</div>
+    </div>
+    <div class="kpi k-opp">
+      <div class="lbl"><i class="dot opp" aria-hidden="true"></i>Opportunities</div>
+      <div class="val" data-field="opportunities">2</div>
+      <div class="sub">viral winners to boost</div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="head">
+      <h2>All posts</h2>
+      <p class="meta">Click a column to sort</p>
+    </div>
+    <div class="tablebox">
+      <table data-sortable>
+        <thead>
+          <tr>
+            <th scope="col"><button class="sort" type="button">Creator<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+            <th scope="col"><button class="sort" type="button">Format<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+            <th scope="col"><button class="sort" type="button">Status<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+            <th scope="col" aria-sort="descending"><button class="sort" type="button">Severity<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+            <th scope="col"><button class="sort" type="button">Reason<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg></button></th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- ONE ROW PER item in `rows`. Mapping:
+               status → chip class: "Act now"=act, "Needs a look"=look, "OK"=ok
+               status → data-sort-value: Act now=3, Needs a look=2, OK=1   (fix #3: rank, not alphabet)
+               max_severity → data-sort-value + text; meter = 5 <i>, class="on" for i < min(max_severity, 5)  (fix #7) -->
+          <tr>
+            <td><a href="/creators/{creator_id}" data-field="handle">@meerakhanna.glow</a></td>
+            <td><span class="fmt" data-field="format">reel</span></td>
+            <td data-sort-value="3"><span class="chip act" data-field="status">Act now</span></td>
+            <td data-sort-value="5"><span class="sev" data-field="max_severity">5<span aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span></td>
+            <td class="reason" data-field="reason">Missing #ad disclosure on a live reel</td>
+          </tr>
+          <tr>
+            <td><a href="/creators/{creator_id}">@skinbyshreya</a></td>
+            <td><span class="fmt">carousel</span></td>
+            <td data-sort-value="3"><span class="chip act">Act now</span></td>
+            <td data-sort-value="4"><span class="sev">4<span aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span></td>
+            <td class="reason">Overdue by 2 days — past the 1-day grace</td>
+          </tr>
+          <tr>
+            <td><a href="/creators/{creator_id}">@dermdiaries.anu</a></td>
+            <td><span class="fmt">reel</span></td>
+            <td data-sort-value="3"><span class="chip act">Act now</span></td>
+            <td data-sort-value="4"><span class="sev">4<span aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span></td>
+            <td class="reason">Caption claims “clinically proven” — not in approved copy</td>
+          </tr>
+          <tr>
+            <td><a href="/creators/{creator_id}">@kavya.routines</a></td>
+            <td><span class="fmt">reel</span></td>
+            <td data-sort-value="2"><span class="chip look">Needs a look</span></td>
+            <td data-sort-value="3"><span class="sev">3<span aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></span></td>
+            <td class="reason">Comment sentiment trending negative (texture complaints)</td>
+          </tr>
+          <tr>
+            <td><a href="/creators/{creator_id}">@rohanreviews</a></td>
+            <td><span class="fmt">story</span></td>
+            <td data-sort-value="2"><span class="chip look">Needs a look</span></td>
+            <td data-sort-value="2"><span class="sev">2<span aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></span></td>
+            <td class="reason">Reach at 41% of promised after 48h</td>
+          </tr>
+          <tr>
+            <td><a href="/creators/{creator_id}">@glowwithzoya</a></td>
+            <td><span class="fmt">reel</span></td>
+            <td data-sort-value="1"><span class="chip ok">OK</span></td>
+            <td data-sort-value="0"><span class="sev">0<span aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span></td>
+            <td class="reason">Viral — 3.4× promised reach in 24h</td>
+          </tr>
+          <tr>
+            <td><a href="/creators/{creator_id}">@ishaan.skincare</a></td>
+            <td><span class="fmt">carousel</span></td>
+            <td data-sort-value="1"><span class="chip ok">OK</span></td>
+            <td data-sort-value="0"><span class="sev">0<span aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span></td>
+            <td class="reason">Not due yet — scheduled for day 6</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script src="static/app.js"></script>
+</body>
+</html>

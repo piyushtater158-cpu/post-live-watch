@@ -1,17 +1,46 @@
 {% extends "base.html" %}
-{% block title %}Creators — Post-Live Watch{% endblock %}
+{% block title %}Creators · Post-Live Watch{% endblock %}
 {% block content %}
-<h1>Creators</h1>
-<table class="post-table">
-    <thead><tr><th>Handle</th><th>Tier</th><th>Niche</th></tr></thead>
-    <tbody>
-    {% for c in creators %}
+{% set sort_icon %}<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 2 5h6z" fill="currentColor"/></svg>{% endset %}
+<main class="wrap">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Roster</p>
+      <h1>Creators</h1>
+    </div>
+    <p class="meta mono">{{ creators | length }} creators on GlowLeaf</p>
+  </div>
+
+  <div class="tablebox">
+    <table data-sortable>
+      <thead>
         <tr>
-            <td><a href="/creators/{{ c.id }}">{{ c.handle }}</a></td>
-            <td>{{ c.tier }}</td>
-            <td>{{ c.niche }}</td>
+          <th scope="col"><button class="sort" type="button">Creator{{ sort_icon }}</button></th>
+          <th scope="col"><button class="sort" type="button">Tier · niche{{ sort_icon }}</button></th>
+          <th scope="col" aria-sort="descending"><button class="sort" type="button">Reliability{{ sort_icon }}</button></th>
+          <th scope="col"><button class="sort" type="button">Book again?{{ sort_icon }}</button></th>
+          <th scope="col"><button class="sort" type="button">This campaign{{ sort_icon }}</button></th>
         </tr>
-    {% endfor %}
-    </tbody>
-</table>
+      </thead>
+      <tbody>
+        {% for c in creators %}
+        <tr>
+          <td><a href="/creators/{{ c.id }}">@{{ c.handle }}</a></td>
+          <td class="muted"><span>{{ c.tier | capitalize }}</span> · <span>{{ c.niche }}</span></td>
+          <td data-sort-value="{{ c.reliability.score }}"><div class="score"><span>{{ c.reliability.score | round | int }}</span><span class="bar" aria-hidden="true"><i style="width:{{ c.reliability.score }}%"></i></span></div></td>
+          <td data-sort-value="{{ c.reliability.book_again_hint | hint_rank }}"><span class="hint {{ c.reliability.book_again_hint | hint_class }}">{{ c.reliability.book_again_hint }}</span></td>
+          {% if c.current_campaign %}
+          <td data-sort-value="{{ c.current_campaign.status | status_rank }}">
+            <span class="chip {{ c.current_campaign.status | status_class }}">{{ c.current_campaign.status }}</span>
+            {% if c.current_campaign.total_deliverables > 1 %}<span class="muted mono" style="margin-left:6px">{{ c.current_campaign.delivered }}/{{ c.current_campaign.total_deliverables }} live</span>{% endif %}
+          </td>
+          {% else %}
+          <td data-sort-value="0"><span class="muted">—</span></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main>
 {% endblock %}

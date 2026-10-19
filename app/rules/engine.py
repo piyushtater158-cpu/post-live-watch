@@ -41,6 +41,7 @@ def evaluate_post(conn: sqlite3.Connection, post_id: int, current_day: int, thre
 
     return {
         "post_id": post_id,
+        "deliverable_id": ctx.deliverable_id,
         "creator_id": ctx.creator_id,
         "handle": ctx.creator_handle,
         "format": ctx.format,
@@ -49,6 +50,9 @@ def evaluate_post(conn: sqlite3.Connection, post_id: int, current_day: int, thre
         "reason": reason,
         "flags": negative,
         "opportunities": opportunities,
+        "deal_type": ctx.deal_type,
+        "min_reach": ctx.min_reach,
+        "contract_notes": ctx.contract_notes,
         "current_day": current_day,
     }
 

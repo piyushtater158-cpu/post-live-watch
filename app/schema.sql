@@ -17,10 +17,10 @@ CREATE TABLE IF NOT EXISTS campaigns (
     name TEXT NOT NULL,
     start_date TEXT NOT NULL,       -- ISO datetime, day 1 00:00
     duration_days INTEGER NOT NULL,
-    required_disclosure TEXT NOT NULL,
+    required_disclosure TEXT NOT NULL,  -- '|'-separated accepted tokens, e.g. '#ad|paid partnership'
     required_tag TEXT NOT NULL,
     required_hashtag TEXT NOT NULL,
-    requires_link_sticker INTEGER NOT NULL DEFAULT 1,
+    requires_link_sticker INTEGER NOT NULL DEFAULT 1,  -- campaign default; deliverables.requires_link_sticker overrides per-deal
     banned_claims TEXT NOT NULL     -- JSON list of strings
 );
 
@@ -39,9 +39,25 @@ CREATE TABLE IF NOT EXISTS deliverables (
     campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
     creator_id INTEGER NOT NULL REFERENCES creators(id),
     format TEXT NOT NULL,            -- 'reel' | 'carousel' | 'story'
-    fee REAL NOT NULL,
+    fee REAL,                        -- NULL for barter/affiliate deals with no cash fee
     promised_date TEXT NOT NULL,     -- ISO datetime due date
-    min_reach INTEGER NOT NULL
+    min_reach INTEGER,               -- NULL = no reach guarantee negotiated (e.g. barter)
+
+    -- Per-deliverable overrides on the campaign brief. NULL = inherit the
+    -- campaign default; '' (empty string) on required_tag/required_hashtag
+    -- means that requirement was negotiated away entirely. Resolved by
+    -- app/rules/contract.py:resolve_terms, never read directly by a detector.
+    required_disclosure TEXT,        -- override; '|'-separated accepted tokens
+    required_tag TEXT,               -- override; '' = waived
+    required_hashtag TEXT,           -- override; '' = waived
+    requires_link_sticker INTEGER,   -- override; NULL = infer from format (stories only)
+
+    deal_type TEXT NOT NULL DEFAULT 'paid',  -- 'paid' | 'barter' | 'affiliate' | 'paid_plus_bonus'
+    barter_value REAL,               -- rupee-equivalent of product given (deal_type='barter')
+    bonus_threshold INTEGER,         -- reach threshold that unlocks the bonus (deal_type='paid_plus_bonus')
+    bonus_amount REAL,               -- bonus amount paid if bonus_threshold is met
+
+    waived_notes TEXT                -- JSON {requirement: human reason}, e.g. {"required_hashtag": "negotiated out — exclusive deal with a rival brand"}
 );
 
 CREATE TABLE IF NOT EXISTS posts (
@@ -53,7 +69,9 @@ CREATE TABLE IF NOT EXISTS posts (
     caption_edited_at TEXT,
     link_sticker_present INTEGER NOT NULL DEFAULT 0,
     permalink TEXT,
-    is_story INTEGER NOT NULL DEFAULT 0,
+    is_story INTEGER NOT NULL DEFAULT 0,  -- DEPRECATED: duplicates deliverables.format == 'story'.
+                                           -- Kept for the persisted volume's sake; nothing reads it
+                                           -- anymore — app/rules/contract.py derives is_story from format.
     screenshot_uploaded INTEGER NOT NULL DEFAULT 0,
     deleted_at_day INTEGER,          -- day number it was first found missing; NULL if never deleted
     competitor_mentioned_day INTEGER -- day number creator posted a competitor mention; NULL if none
@@ -116,5 +134,6 @@ CREATE TABLE IF NOT EXISTS decisions (
 CREATE INDEX IF NOT EXISTS idx_snapshots_post ON post_snapshots(post_id, day_number);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, day_number);
 CREATE INDEX IF NOT EXISTS idx_deliverables_campaign ON deliverables(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_deliverables_creator ON deliverables(campaign_id, creator_id);
 CREATE INDEX IF NOT EXISTS idx_historical_creator ON historical_campaigns(creator_id);
 CREATE INDEX IF NOT EXISTS idx_flags_post ON flags(post_id);
