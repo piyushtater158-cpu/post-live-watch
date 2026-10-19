@@ -8,7 +8,7 @@
     {% for d in rows %}
         <tr>
             <td>{{ d.created_at }}</td>
-            <td>@{{ d.creator_handle }}</td>
+            <td>@{{ d.handle }}</td>
             <td>{{ d.rule_name or "—" }}</td>
             <td><span class="chip chip-{{ d.action }}">{{ d.action }}</span></td>
             <td>{{ d.message_text or "—" }}</td>

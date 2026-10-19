@@ -36,7 +36,7 @@ def test_all_12_problems_fire_at_full_campaign(conn):
         got = _rule_ids(flags)
         expected_set = expected if isinstance(expected, set) else {expected}
         missing = expected_set - got
-        assert not missing, f"post {pid} ({results[pid]['creator_handle']}) missing rule(s) {missing}, got {got}"
+        assert not missing, f"post {pid} ({results[pid]['handle']}) missing rule(s) {missing}, got {got}"
         fired_rule_ids |= got
 
     viral_flags = results[VIRAL_POST_ID]["opportunities"]
@@ -50,7 +50,7 @@ def test_healthy_posts_stay_clean(conn):
     results = {r["post_id"]: r for r in evaluate_campaign(conn, campaign_id=1, current_day=7)}
     for pid in HEALTHY_IDS:
         r = results[pid]
-        assert r["status"] == "OK", f"post {pid} ({r['creator_handle']}) expected OK, got {r['status']}: {r['reason']}"
+        assert r["status"] == "OK", f"post {pid} ({r['handle']}) expected OK, got {r['status']}: {r['reason']}"
         assert r["flags"] == [], f"post {pid} unexpectedly flagged: {r['flags']}"
 
 

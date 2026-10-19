@@ -5,6 +5,12 @@ already built and running on functional (unstyled) Jinja2 + HTMX templates
 at `app/templates/*.html` — this brief is what gets redesigned; the data
 contracts below don't change, only the markup/CSS wrapping them.
 
+**Data contract convention**: the creator's Instagram handle is always the
+field named `handle` — on every screen, in every data structure, no
+exceptions (an earlier pass had it inconsistently as `handle` in one place
+and `creator_handle` in another; now unified). If a future field reads
+`creator_handle` anywhere, that's a bug, not a second valid name.
+
 **Visual tone**: operational dashboard for a marketing agency account
 manager — think "mission control for a live campaign," not a marketing
 site. Status (OK / Needs a look / Act now) must be instantly scannable by
@@ -24,7 +30,7 @@ requirement — all data is synthetic).
 
 **Data fields**:
 - KPI tiles: `posts_live`/`total_due` (e.g. "14/20"), `total_reach`/`total_promised` (formatted with commas), `by_status["Act now"]`, `by_status["Needs a look"]`, `by_status["OK"]`, `opportunities` (viral count).
-- Table rows (`rows`, one per post): `creator_handle` (links to profile), `format` (reel/carousel/story), `status` chip, `max_severity` (int), `reason` (one-line string).
+- Table rows (`rows`, one per post): `handle` (links to profile via `creator_id`), `format` (reel/carousel/story), `status` chip, `max_severity` (int), `reason` (one-line string).
 
 **Interaction states**: table sortable by any column (client-side is fine); status chip color-coded (red=Act now, amber=Needs a look, green=OK); row hover highlights.
 
@@ -39,10 +45,12 @@ requirement — all data is synthetic).
 - `status` chip, `handle`, `format`, `max_severity`.
 - `flags[]`: each has `rule_name`, `rule_id`, `severity`, `reason`, optional `ai_note` (shown only when AI is on and had something to add — e.g. Hinglish sentiment summary, paraphrase-claim note, underperformance explanation).
 - `opportunity_note`: present only for viral-winner posts (rule 12) — render as a distinct "🚀 viral winner" callout, visually separate from problem flags (different color, e.g. blue, not red/amber).
-- `suggested_message`: AI- or template-generated copy-paste text (creator nudge).
+- `suggested_message`: AI- or template-generated copy-paste text (creator nudge) — present whenever `flags[]` is non-empty.
+- `default_message`: `suggested_message` if present, else `opportunity_note` — **use this one** to pre-fill the editable textarea, since a viral-winner-only card has no `suggested_message`.
+- `primary_rule_id`: the rule the decision form submits against (first problem flag, or the opportunity's rule id if there are no problem flags). **Every card that has either a flag or an opportunity gets a decision form** — a viral-winner-only card (no `flags`, just `opportunity_note`) still needs Approve/Edit/Dismiss on the boost suggestion, not just a read-only callout. This was a real gap in the first pass (opportunity cards silently had no action row) — fixed in the current templates; preserve the behavior in the redesign.
 
 **Interaction states**:
-- Each card's action row: **Approve** / **Edit & Approve** / **Dismiss** buttons, plus an editable textarea pre-filled with `suggested_message` and a **Copy** button (clipboard).
+- Each card's action row: **Approve** / **Edit & Approve** / **Dismiss** buttons, plus an editable textarea pre-filled with `default_message` and a **Copy** button (clipboard). Submits `flag_rule_id = primary_rule_id`.
 - Submitting any action POSTs to `/flags/{post_id}/decide` and the card list re-renders (currently HTMX partial swap of `#queue-list` — keep this swap target id if redesigning the HTML, or tell the backend team the new target id).
 - Empty state: "No flags right now — everything's clean as of day {N}."
 
@@ -73,7 +81,7 @@ requirement — all data is synthetic).
 ## 5. Decision Log (`/decisions`, template `decisions.html`)
 **Content inventory**: a plain audit table — every approve/edit/dismiss action ever taken, with timestamp.
 
-**Data fields**: `created_at`, `creator_handle`, `rule_name` (nullable — dismiss-without-flag edge case), `action` (approve/edit/dismiss, color-coded chip), `message_text` (nullable).
+**Data fields**: `created_at`, `handle`, `rule_name` (nullable — dismiss-without-flag edge case), `action` (approve/edit/dismiss, color-coded chip), `message_text` (nullable).
 
 **Interaction states**: none beyond display — this is a pure audit trail, newest first.
 

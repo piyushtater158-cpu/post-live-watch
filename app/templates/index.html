@@ -21,7 +21,7 @@
     <tbody>
         {% for r in rows %}
         <tr class="row-{{ r.status | lower | replace(' ', '-') }}">
-            <td><a href="/creators/{{ r.creator_id }}">{{ r.creator_handle }}</a></td>
+            <td><a href="/creators/{{ r.creator_id }}">{{ r.handle }}</a></td>
             <td>{{ r.format }}</td>
             <td><span class="chip chip-{{ r.status | lower | replace(' ', '-') }}">{{ r.status }}</span></td>
             <td>{{ r.max_severity }}</td>

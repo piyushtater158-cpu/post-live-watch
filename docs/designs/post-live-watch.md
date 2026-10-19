@@ -54,7 +54,7 @@ Build and `pytest`-verify the rules/scoring engine, config-driven thresholds, re
 ## Open Questions
 - Exact OpenRouter model card (deferred by the user — wire it behind `OPENROUTER_MODEL` env var, pick a sensible cheap/fast default, confirm later).
 - Reverse proxy / subdomain scheme on the Oracle VM (Caddy vs nginx vs Cloudflare Tunnel — whatever the existing n8n setup already uses).
-- Exact reliability-score weighting formula (brief says "transparent weighted formula" — needs concrete weights before the creator-profile screen can be built; propose a first draft during the engine phase and confirm with the user).
+- Reliability-score weighting formula — drafted in `app/reliability.py` (40% on-time / 25% performance-vs-promise / 20% flags-per-campaign / 15% competitor-conflict, score 0-100). Still needs your explicit sign-off on the weights; not a placeholder, but not yet confirmed as final either.
 - Whether the n8n brand-report workflow ships in the 4-5h window or is deferred to "if time remains" (per premise 6, it's explicitly optional — recommend deferring it, confirm before building).
 
 ## Success Criteria

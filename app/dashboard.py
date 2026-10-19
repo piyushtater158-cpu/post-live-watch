@@ -101,13 +101,21 @@ def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool)
             opp = r["opportunities"][0]
             opportunity_note = ai.suggest_boost(ai_enabled, cinfo["handle"], opp["evidence"]["multiplier"], cinfo["niche"])
 
+        # The rule a decision form submits against — a problem flag takes priority,
+        # but an opportunity-only card (e.g. a viral winner) still needs one so its
+        # suggested boost can go through the same Approve/Edit/Dismiss flow.
+        primary_rule_id = enriched_flags[0]["rule_id"] if enriched_flags else (
+            r["opportunities"][0]["rule_id"] if r["opportunities"] else None
+        )
+
         cards.append({
             **r,
-            "handle": cinfo["handle"],
             "niche": cinfo["niche"],
             "flags": enriched_flags,
             "suggested_message": suggested_message,
             "opportunity_note": opportunity_note,
+            "primary_rule_id": primary_rule_id,
+            "default_message": suggested_message or opportunity_note,
         })
     return cards
 
@@ -141,9 +149,9 @@ def get_brand_report(conn: sqlite3.Connection, current_day: int, ai_enabled: boo
     issues = []
     for r in results:
         if r["opportunities"]:
-            highlights.append(f"@{r['creator_handle']}: {r['opportunities'][0]['reason']}")
+            highlights.append(f"@{r['handle']}: {r['opportunities'][0]['reason']}")
         if r["status"] == "Act now":
-            issues.append(f"@{r['creator_handle']}: {r['reason']}")
+            issues.append(f"@{r['handle']}: {r['reason']}")
 
     text = ai.generate_brand_daily_report(
         ai_enabled, current_day, overview["duration_days"], overview["posts_live"], overview["total_due"],

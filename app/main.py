@@ -90,6 +90,8 @@ def decide(
     if flag_row is None and flag_rule_id:
         result = evaluate_post(conn, post_id, st["current_day"])
         match = next((f for f in result["flags"] if f["rule_id"] == flag_rule_id), None)
+        if match is None:
+            match = next((f for f in result["opportunities"] if f["rule_id"] == flag_rule_id), None)
         if match:
             cur = conn.execute(
                 "INSERT INTO flags (post_id, rule_id, rule_name, severity, reason, evidence, detected_day) "
@@ -114,7 +116,7 @@ def decision_log(request: Request, conn: sqlite3.Connection = Depends(get_db)):
     rows = [
         dict(r)
         for r in conn.execute(
-            "SELECT dec.*, c.handle AS creator_handle, f.rule_name "
+            "SELECT dec.*, c.handle, f.rule_name "
             "FROM decisions dec "
             "JOIN posts p ON p.id = dec.post_id "
             "JOIN deliverables d ON d.id = p.deliverable_id "
