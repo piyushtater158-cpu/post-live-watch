@@ -61,7 +61,7 @@
 
   {% if current_deliverables %}
   <section style="display:flex;flex-direction:column;gap:12px">
-    <div class="head"><h2>Current campaign · GlowLeaf</h2></div>
+    <div class="head"><h2>Current campaign · {{ campaign_name }}</h2></div>
     {% for d in current_deliverables %}
     <div class="panel">
       <span class="lbl">{{ d.deliverable_label }} · {{ d.deal_type | capitalize }}{% if d.deal_type != 'paid' %} deal{% endif %}</span>
@@ -73,6 +73,25 @@
         <span>{% for n in d.contract_notes %}{{ n.requirement }}: {{ n.note }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
       </div>
       {% endif %}
+      {% if d.data_notes %}
+      <div class="datanote" style="margin:10px 0 0">
+        <b>DATA</b>
+        <span>{% for n in d.data_notes %}{{ n.note }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+      </div>
+      {% endif %}
+      <p style="margin:10px 0 0"><a href="/deliverables/{{ d.deliverable_id }}/metrics">Enter today's metrics manually</a></p>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if other_campaigns %}
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="head"><h2>Other campaigns</h2></div>
+    {% for oc in other_campaigns %}
+    <div class="panel">
+      <span class="lbl">{{ oc.campaign_name }}</span>
+      {% if oc.status %}<span class="chip {{ oc.status | status_class }}">{{ oc.status }}</span>{% endif %}
     </div>
     {% endfor %}
   </section>

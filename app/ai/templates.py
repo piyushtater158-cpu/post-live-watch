@@ -41,9 +41,9 @@ def boost_suggestion(creator_handle: str, multiplier: float, deal_type: str = "p
     )
 
 
-def nudge_message(creator_handle: str, rule_name: str, reason: str) -> str:
+def nudge_message(creator_handle: str, rule_name: str, reason: str, brand_name: str = "the brand") -> str:
     return (
-        f"Hi {creator_handle}! Quick note on the GlowLeaf post — we noticed: {reason} "
+        f"Hi {creator_handle}! Quick note on the {brand_name} post — we noticed: {reason} "
         f"Could you take a look and fix this when you get a chance? Thanks so much! 🙏"
     )
 
@@ -53,9 +53,10 @@ def brand_alert_message(creator_handle: str, rule_name: str, reason: str) -> str
 
 
 def brand_daily_report(day: int, duration: int, live_count: int, due_count: int,
-                        total_reach: int, promised_reach: int, act_now: int, needs_look: int, ok: int) -> str:
+                        total_reach: int, promised_reach: int, act_now: int, needs_look: int, ok: int,
+                        campaign_name: str = "This campaign") -> str:
     return (
-        f"Day {day} of {duration} — GlowLeaf Vitamin C Serum Launch\n\n"
+        f"Day {day} of {duration} — {campaign_name}\n\n"
         f"Posts live: {live_count}/{due_count}. Total reach so far: {total_reach:,} "
         f"(promised: {promised_reach:,}).\n"
         f"Status: {act_now} need action now, {needs_look} need a look, {ok} are on track.\n"
@@ -296,3 +297,81 @@ def parse_deal_brief_fallback(brief_text: str, campaign: dict, current_day: int,
     if handle_note:
         creator["handle_note"] = handle_note
     return {"creator": creator, "deliverables": deliverables}
+
+
+# ---------------------------------------------------------------------------
+# Campaign intake fallback (app/campaign_intake.py). Deliberately does NOT
+# reimplement deal-term extraction: it splits the brief into one chunk per
+# creator (at each @handle boundary) and runs parse_deal_brief_fallback
+# above, UNCHANGED, on each chunk — the single-creator fallback's hard-won
+# regex work (handle guessing, deal type, reach, waivers, due dates) belongs
+# in exactly one place. Only the campaign-level fields below are new.
+#
+# With zero or one @handle in the whole brief, this can only split out a
+# single creator — a brief naming several creators by name alone ("signed
+# Priya and Riya for...") drafts just the first and leaves the rest for a
+# human to add, same as any other fallback gap: validation catches it, the
+# preview shows it, nothing is silently wrong.
+# ---------------------------------------------------------------------------
+
+_CAMPAIGN_NAME_RE = re.compile(r"(?:campaign(?:\s*name)?|brief)\s*[:\-]\s*([^\n,.;]{3,80})", re.IGNORECASE)
+_BRAND_LABEL_RE = re.compile(r"(?:brand|client)\s*[:\-]\s*([^\n,.;]{2,60})", re.IGNORECASE)
+_FOR_BRAND_RE = re.compile(r"\bfor\s+([A-Z][A-Za-z0-9&'.]*(?:\s+[A-Z][A-Za-z0-9&'.]*){0,3})(?:'s)?\s+(?:campaign|launch)\b")
+_DURATION_DAYS_RE = re.compile(
+    r"(\d{1,3})[- ]day\s+campaign"
+    r"|campaign\s+(?:runs?|running)\s+(?:for\s+)?(\d{1,3})\s+days?"
+    r"|duration\s*[:\-]?\s*(\d{1,3})\s+days?",
+    re.IGNORECASE,
+)
+_DAYS_RUNNING_RE = re.compile(
+    r"(?:already\s+)?(?:been\s+)?(?:running|live)\s+(?:for\s+)?(\d{1,3})\s+days?"
+    r"|day\s+(\d{1,3})\s+of\s+\d{1,3}"
+    r"|(\d{1,3})\s+days?\s+in\b",
+    re.IGNORECASE,
+)
+
+
+def _first_group(match: re.Match | None) -> int | None:
+    if not match:
+        return None
+    return next((int(g) for g in match.groups() if g), None)
+
+
+def _campaign_fields_fallback(text: str) -> tuple[str | None, str | None, int | None, int | None]:
+    name_m = _CAMPAIGN_NAME_RE.search(text)
+    name = name_m.group(1).strip() if name_m else None
+
+    brand_m = _BRAND_LABEL_RE.search(text) or _FOR_BRAND_RE.search(text)
+    brand_name = brand_m.group(1).strip() if brand_m else None
+
+    return name, brand_name, _first_group(_DURATION_DAYS_RE.search(text)), _first_group(_DAYS_RUNNING_RE.search(text))
+
+
+def _split_creator_chunks(text: str) -> list[str]:
+    handles = list(_HANDLE_RE.finditer(text))
+    if len(handles) <= 1:
+        return [text]
+    return [
+        text[m.start(): handles[i + 1].start() if i + 1 < len(handles) else len(text)]
+        for i, m in enumerate(handles)
+    ]
+
+
+def parse_campaign_brief_fallback(brief_text: str, known_handles: list[str]) -> dict:
+    text = brief_text or ""
+    name, brand_name, duration_days, days_running = _campaign_fields_fallback(text)
+
+    creators = []
+    for chunk in _split_creator_chunks(text):
+        # campaign/current_day/duration_days are accepted but unused by
+        # parse_deal_brief_fallback itself (see its own definition above) —
+        # passed as placeholders only to match its signature.
+        creators.append(parse_deal_brief_fallback(chunk, {}, 0, 0, known_handles))
+
+    return {
+        "campaign": {
+            "name": name, "brand_name": brand_name,
+            "duration_days": duration_days, "days_running": days_running,
+        },
+        "creators": creators,
+    }

@@ -180,11 +180,12 @@ The viral winner is **positive**, so it goes into a separate `opportunities` lis
 
 All 7 days of data are seeded up front. `load_post_context` only loads snapshots and comments where `day_number <= current_day`. Time-based rules use `as_of`, which is the end of the current day.
 
-Pressing **Advance day** increments a counter in `app_state`, and flags appear over time. For example, "Not posted" fires only on day 3, after the grace period, and the story rule fires only after 24 hours. Both are tested.
+Pressing **Advance day** increments the selected campaign's own `day_override` column (each campaign has its own clock now — see below), and flags appear over time. For example, "Not posted" fires only on day 3, after the grace period, and the story rule fires only after 24 hours. Both are tested.
 
 > **Likely question:** "How would this work with real data?"
 >
-> Replace the seed with a scheduled job that pulls metrics from the Instagram Graph API and stores one snapshot row per post per day. The engine does not change, because it only reads snapshots up to a given day.
+> Built: `app/metrics/` is a real 3-tier connector (branded content, public business_discovery, manual entry) and `app/metrics/sync.py:sync_campaign` writes one post_snapshots row per post per sync, with the exact same `source`/nullable-reach discipline the seed data now follows. The engine didn't change, because it only reads snapshots up to a given day regardless of where they came from. What's still missing: a scheduled/cron trigger (sync is a manual button today) and a live Meta token to verify the connector against — no Meta app exists for this project yet, so it's tested against recorded response fixtures. See `docs/meta-setup.md`.
+> A second, related question this answer now invites: "campaigns are singular everywhere in the DB — how would multiple campaigns work?" They do now — `app/campaign_intake.py`, `/campaigns` — and that work is what exposed a real bug: `dashboard.py`/`reliability.py` used to query a creator's deliverables with no campaign filter at all, correct only because exactly one campaign existed. Good for showing you'd rather name a latent assumption than leave it buried.
 
 ---
 
@@ -281,17 +282,19 @@ Interviewers often probe here. Admitting a weak spot clearly and explaining the 
 
 1. **Disclosure is hardcoded.** Rule 3 checks for `#ad` and "paid partnership" directly in code. The campaign's `required_disclosure` is used only in the message text. That contradicts "nothing hardcoded". *Fix:* read the accepted labels from the campaign or the YAML.
 2. **Reliability weights live in Python, not in `thresholds.yaml`.** Again, not fully "one config file". *Fix:* move them into the YAML.
-3. **Single campaign only.** `campaign_id=1` and `duration_days=7` are hardcoded in `app/actions.py`, `app/api.py` and `dashboard.py`. *Fix:* read them from the campaign row and add a campaign selector.
+3. ~~**Single campaign only.**~~ **Fixed.** `app/campaign_intake.py` + `/campaigns` support creating, switching between, and editing multiple campaigns, including ones already in flight. Fixing this surfaced a real bug it had been hiding: `dashboard.py`/`reliability.py` queried a creator's deliverables with no campaign filter at all — correct only because exactly one campaign existed. `tests/test_campaign_scoping.py` is the regression guard.
 4. **Flag evidence is saved as Python text, not JSON.** `str(match["evidence"])` in `app/actions.py` writes Python's own text format, which is not valid JSON, although the schema says JSON. *Fix:* use `json.dumps`.
 5. **Performance.** AI calls are synchronous, one per flag, inside the page request, each with a 15-second timeout, and nothing is cached. A slow provider makes the queue page slow. The engine also runs several times per request, with many small queries. *Fix:* cache AI output per flag and day, generate it in the background, and batch the queries.
-6. **One post per creator** is assumed (`fetchone()` in the reliability and dashboard code). *Fix:* aggregate over all of a creator's posts.
-7. **No authentication or CSRF protection.** Explicitly out of scope for the brief, but worth saying you know it is needed.
+6. ~~**One post per creator** is assumed (`fetchone()` in the reliability and dashboard code).~~ **Fixed in an earlier pass** — both now aggregate over every deliverable a creator has in a campaign (`_creator_deliverables`, `_current_campaign_point`).
+7. **No authentication or CSRF protection.** Explicitly out of scope for the brief, but worth saying you know it is needed. Also now load-bearing in a new way: the selected campaign lives in a server-global `app_state` row (`app/actions.py:get_selected_campaign_id`), correct for today's single-user app but wrong the moment a second concurrent user exists — it would need to move into a per-session value alongside real auth.
 8. **Prompt injection.** Comment text goes straight into the LLM prompt. The risk is low because the output is only shown to a person and nothing auto-sends.
 9. **Deprecated startup hook.** `@app.on_event("startup")` is deprecated in newer FastAPI versions in favour of lifespan handlers. Minor.
+10. **No scheduled sync.** `app/metrics/sync.py` runs on a manual "Sync now" button, not a cron job — there's no nightly puller yet.
+11. **The Instagram connector is unverified against a live account.** It's tested against recorded fixtures only, because no Meta app exists for this project. See `docs/meta-setup.md`'s "what's unverified" section for the three assumptions that would need checking against a real token.
 
 > **Likely question:** "What would you do with another week?"
 >
-> Move every weight and keyword list into config, support multiple campaigns, add caching and background AI generation, connect the real Instagram Graph API, add authentication, and use the decision log to tune thresholds.
+> Move every weight and keyword list into config (still true), add caching and background AI generation (still true), add authentication and move campaign selection into a session (still true, and now sharper — see item 7), use the decision log to tune thresholds (still true). Multiple campaigns and a real Instagram connector are no longer on this list — they're built; what's left there is a scheduled sync trigger and verifying the connector against a live Meta token once App Review clears.
 
 ---
 

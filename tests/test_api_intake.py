@@ -20,13 +20,17 @@ def client(conn, monkeypatch):
     """Rows these tests create are deleted afterwards — the seeded session DB is
     shared, and other suites count a seeded creator's deliverables exactly."""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    set_state(conn, "current_day", "1")
+    # The day now lives on campaigns.day_override, not a global app_state key —
+    # see app/db.py:get_campaign_day.
+    conn.execute("UPDATE campaigns SET day_override = 1 WHERE id = 1")
+    conn.commit()
     set_state(conn, "ai_enabled", "0")
     high_water = {t: conn.execute(f"SELECT COALESCE(MAX(id), 0) m FROM {t}").fetchone()["m"] for t in CLEANUP_ORDER}
     with TestClient(app) as c:
         yield c
     for table in CLEANUP_ORDER:
         conn.execute(f"DELETE FROM {table} WHERE id > ?", (high_water[table],))
+    conn.execute("UPDATE campaigns SET day_override = 7 WHERE id = 1")
     conn.commit()
     set_state(conn, "ai_enabled", "1")
 

@@ -6,7 +6,7 @@
   <div class="head">
     <div class="titleblock">
       <p class="eyebrow">Campaign overview</p>
-      <h1>GlowLeaf Vitamin C Serum Launch — Campaign Overview</h1>
+      <h1>{{ campaign_name }} — Campaign Overview</h1>
     </div>
     <p class="meta mono">{{ total_due }} creators · {{ duration_days }}-day window</p>
   </div>
@@ -21,6 +21,9 @@
       <div class="lbl">Reach vs promised</div>
       <div class="val">{{ "{:,}".format(total_reach) }}</div>
       <div class="sub">of <span class="mono">{{ "{:,}".format(total_promised) }}</span> promised across {{ guaranteed_count }} guaranteed deliverables</div>
+      {% if reach_unknown_count %}
+      <div class="sub">reach known for {{ reach_known_count }} of {{ total_due }} due deliverables — the rest came through a metrics source with no reach figure</div>
+      {% endif %}
     </div>
     <div class="kpi k-act">
       <div class="lbl"><i class="dot act" aria-hidden="true"></i>Act now</div>

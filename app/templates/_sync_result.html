@@ -1,0 +1,13 @@
+<div id="sync-result" class="panel" style="flex-direction:column;align-items:stretch;gap:6px">
+  <span class="lbl">Sync result &middot; {{ result.provider }}</span>
+  <p class="mono">
+    status: <b>{{ result.status }}</b>
+    {% if result.posts_attempted %} &middot; {{ result.posts_updated }}/{{ result.posts_attempted }} posts updated{% endif %}
+  </p>
+  {% if result.errors %}
+  <div class="estflag" style="margin:0">
+    <b>NOTE</b>
+    <span>{% for e in result.errors %}{{ e.message if e is mapping else e }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+  </div>
+  {% endif %}
+</div>

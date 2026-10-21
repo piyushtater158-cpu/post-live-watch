@@ -1,0 +1,32 @@
+{
+  "business_discovery": {
+    "followers_count": 65000,
+    "media_count": 412,
+    "media": {
+      "data": [
+        {
+          "id": "17900000000000101",
+          "caption": "Loving this new routine 🌿 no #ad here just vibes",
+          "like_count": 1800,
+          "comments_count": 95,
+          "timestamp": "2026-09-01T09:30:00+0000",
+          "permalink": "https://www.instagram.com/p/public-sample-1/",
+          "media_type": "IMAGE"
+        },
+        {
+          "id": "17900000000000102",
+          "caption": "Behind the scenes of today's shoot",
+          "like_count": 950,
+          "comments_count": 40,
+          "timestamp": "2026-08-30T14:00:00+0000",
+          "permalink": "https://www.instagram.com/p/public-sample-2/",
+          "media_type": "CAROUSEL_ALBUM"
+        }
+      ],
+      "paging": {
+        "cursors": {"after": "QVFI"}
+      }
+    }
+  },
+  "id": "17841400000000001"
+}

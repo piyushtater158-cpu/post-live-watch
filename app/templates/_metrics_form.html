@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Enter metrics · Post-Live Watch{% endblock %}
+{% block content %}
+<main class="wrap narrow">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Manual metrics entry</p>
+      <h1>@{{ deliverable.handle }} &middot; {{ deliverable.format | capitalize }}</h1>
+    </div>
+    <p class="meta mono">Type in today's numbers from the post directly — written as 'am_entered', same as any other source.</p>
+  </div>
+
+  <form class="panel" style="flex-direction:column;align-items:stretch;gap:16px" method="post" action="/deliverables/{{ deliverable.deliverable_id }}/metrics">
+    <div class="fieldgrid">
+      <div class="field">
+        <label for="day_number">Campaign day</label>
+        <input id="day_number" type="number" name="day_number" min="1" value="{{ current_day }}" required>
+      </div>
+      <div class="field">
+        <label for="reach">Reach (blank if unknown)</label>
+        <input id="reach" type="number" name="reach">
+      </div>
+      <div class="field">
+        <label for="likes">Likes</label>
+        <input id="likes" type="number" name="likes" value="0">
+      </div>
+      <div class="field">
+        <label for="comments_count">Comments</label>
+        <input id="comments_count" type="number" name="comments_count" value="0">
+      </div>
+      <div class="field">
+        <label for="saves">Saves (blank if unknown)</label>
+        <input id="saves" type="number" name="saves">
+      </div>
+      <div class="field">
+        <label for="shares">Shares (blank if unknown)</label>
+        <input id="shares" type="number" name="shares">
+      </div>
+      <div class="field">
+        <label><input type="checkbox" name="still_live" checked style="width:auto;display:inline"> Still live</label>
+      </div>
+    </div>
+    <div class="row" style="display:flex;justify-content:flex-end;gap:10px">
+      <a class="btn ghost" href="/creators">Cancel</a>
+      <button class="btn approve" type="submit">Save</button>
+    </div>
+  </form>
+</main>
+{% endblock %}

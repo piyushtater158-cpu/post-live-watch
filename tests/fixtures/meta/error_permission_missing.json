@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "(#10) Application does not have permission for this action",
+    "type": "OAuthException",
+    "code": 10,
+    "fbtrace_id": "D4e5F6g7H8i9J0k1"
+  }
+}

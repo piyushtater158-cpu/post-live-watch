@@ -100,7 +100,7 @@ def test_new_rows_flow_through_the_rollup_and_contract_machinery(conn):
     assert evaluated["status"] == "OK"  # not due yet, no flags
     assert evaluated["contract_notes"] == []  # nothing negotiated away in this draft
 
-    deliverables = _creator_deliverables(conn, creator_id, current_day=1)
+    deliverables = _creator_deliverables(conn, campaign_id=1, creator_id=creator_id, current_day=1)
     assert len(deliverables) == 1
     rollup = _rollup_campaign_status(deliverables)
     assert rollup["total_deliverables"] == 1

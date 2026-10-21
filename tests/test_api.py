@@ -10,14 +10,21 @@ from app.main import app
 VIRAL_POST_ID = 19
 
 
+def _set_campaign1_day(conn, day: int) -> None:
+    """The day now lives on campaigns.day_override, not a global app_state key —
+    see app/db.py:get_campaign_day."""
+    conn.execute("UPDATE campaigns SET day_override = ? WHERE id = 1", (day,))
+    conn.commit()
+
+
 @pytest.fixture
 def client(conn, monkeypatch):
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    set_state(conn, "current_day", "7")
+    _set_campaign1_day(conn, 7)
     set_state(conn, "ai_enabled", "0")
     with TestClient(app) as c:
         yield c
-    set_state(conn, "current_day", "1")
+    _set_campaign1_day(conn, 7)
     set_state(conn, "ai_enabled", "1")
 
 
@@ -26,7 +33,13 @@ def test_healthz(client):
 
 
 def test_state(client):
-    assert client.get("/api/state").json() == {"current_day": 7, "ai_enabled": False, "duration_days": 7}
+    st = client.get("/api/state").json()
+    assert st["current_day"] == 7
+    assert st["ai_enabled"] is False
+    assert st["duration_days"] == 7
+    assert st["campaign_id"] == 1
+    assert st["clock_mode"] == "simulated"
+    assert any(c["id"] == 1 for c in st["campaigns"])
 
 
 def test_overview_shape(client):
@@ -63,6 +76,17 @@ def test_report_shape(client):
     assert isinstance(data["text"], str) and data["text"]
     assert isinstance(data["highlights"], list)
     assert isinstance(data["issues"], list)
+
+
+def test_simulator_rejects_a_live_clock_campaign(client, conn):
+    conn.execute("UPDATE campaigns SET day_override = NULL WHERE id = 1")
+    conn.commit()
+    try:
+        assert client.post("/api/simulate/advance-day").status_code == 409
+        assert client.post("/api/simulate/reset-day").status_code == 409
+    finally:
+        conn.execute("UPDATE campaigns SET day_override = 7 WHERE id = 1")
+        conn.commit()
 
 
 def test_simulator_controls(client):

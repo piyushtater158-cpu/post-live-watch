@@ -207,16 +207,17 @@ def suggest_boost(ai_enabled: bool, creator_handle: str, multiplier: float, nich
     return tpl.boost_suggestion(creator_handle, multiplier, deal_type)
 
 
-def generate_nudge_message(ai_enabled: bool, creator_handle: str, rule_name: str, reason: str) -> str:
+def generate_nudge_message(ai_enabled: bool, creator_handle: str, rule_name: str, reason: str,
+                            brand_name: str = "the brand") -> str:
     if ai_enabled:
         text = call_ai(
             "Write a short, warm, professional WhatsApp-style message from an account manager to a "
             "creator, asking them to fix a flagged issue with their sponsored post. 2-3 sentences, friendly, no corporate jargon.",
-            f"Creator: @{creator_handle}. Issue ({rule_name}): {reason}",
+            f"Brand: {brand_name}. Creator: @{creator_handle}. Issue ({rule_name}): {reason}",
         )
         if text:
             return text
-    return tpl.nudge_message(creator_handle, rule_name, reason)
+    return tpl.nudge_message(creator_handle, rule_name, reason, brand_name)
 
 
 def generate_brand_alert(ai_enabled: bool, creator_handle: str, rule_name: str, reason: str) -> str:
@@ -232,12 +233,14 @@ def generate_brand_alert(ai_enabled: bool, creator_handle: str, rule_name: str, 
 
 def generate_brand_daily_report(ai_enabled: bool, day: int, duration: int, live_count: int, due_count: int,
                                  total_reach: int, promised_reach: int, act_now: int, needs_look: int,
-                                 ok: int, highlights: list[str], issues: list[str]) -> str:
+                                 ok: int, highlights: list[str], issues: list[str],
+                                 campaign_name: str = "This campaign") -> str:
     if ai_enabled:
         text = call_ai(
             "Write a short, confident daily campaign status update for a brand client. 3-5 sentences: "
             "what went live, a highlight, any issues and what's being done about them. No corporate fluff.",
-            f"Day {day}/{duration}. Posts live: {live_count}/{due_count}. Reach: {total_reach} of {promised_reach} promised. "
+            f"Campaign: {campaign_name}. Day {day}/{duration}. Posts live: {live_count}/{due_count}. "
+            f"Reach: {total_reach} of {promised_reach} promised. "
             f"{act_now} act-now flags, {needs_look} need-a-look, {ok} on track. "
             f"Highlights: {'; '.join(highlights) or 'none yet'}. Issues: {'; '.join(issues) or 'none'}.",
             max_tokens=250,
@@ -245,7 +248,7 @@ def generate_brand_daily_report(ai_enabled: bool, day: int, duration: int, live_
         if text:
             return text
     return tpl.brand_daily_report(day, duration, live_count, due_count, total_reach, promised_reach,
-                                   act_now, needs_look, ok)
+                                   act_now, needs_look, ok, campaign_name)
 
 
 _BRIEF_SYSTEM_PROMPT = """You convert an account manager's shorthand note about a signed \
@@ -311,6 +314,116 @@ Example 2 — "renew @glow_with_meera for one more reel, ₹55k, 40k min reach" 
     "bonus_amount": null, "min_reach": 40000, "min_reach_explicitly_none": false, "due_in_days": null,
     "required_tag": null, "required_hashtag": null, "requires_link_sticker": null, "waived_notes": {}}
  ]}"""
+
+
+_CAMPAIGN_BRIEF_SYSTEM_PROMPT = """You convert an account manager's note about an entire influencer campaign \
+— brand-new or already running — into ONE strict JSON object covering the campaign itself and every \
+creator deal mentioned. Extract only what the note states — never invent facts it doesn't contain.
+
+Output exactly one JSON object, no prose, no markdown code fences, matching this shape:
+{
+  "campaign": {
+    "name": str|null, "brand_name": str|null, "product": str|null,
+    "duration_days": number|null, "days_running": number|null,
+    "required_disclosure": str|null, "required_tag": str|null, "required_hashtag": str|null,
+    "requires_link_sticker": bool|null, "banned_claims": [str]|null
+  },
+  "creators": [
+    {"creator": {"handle": str|null, "raw_name": str|null, "followers": number|null,
+                 "tier": "mid"|"micro"|null, "niche": str|null},
+     "deliverables": [
+       {"format": "reel"|"carousel"|"story", "deal_type": "paid"|"barter"|"affiliate"|"paid_plus_bonus",
+        "fee": number|null, "barter_value": number|null, "bonus_threshold": number|null, "bonus_amount": number|null,
+        "min_reach": number|null, "min_reach_explicitly_none": bool,
+        "due_in_days": number|null,
+        "required_tag": str|null, "required_hashtag": str|null, "requires_link_sticker": bool|null,
+        "waived_notes": {"required_tag"?: str, "required_hashtag"?: str, "requires_link_sticker"?: str}}
+     ]}
+  ]
+}
+
+Null semantics — same rules as the single-creator deal note, applied per creator:
+- null on a deliverable's required_tag/required_hashtag/requires_link_sticker means "not mentioned —
+  inherit the campaign default." "" or false means "negotiated away," and MUST carry a matching
+  waived_notes entry quoting the stated reason (or "Waived at intake — reason not stated" if none given).
+- min_reach_explicitly_none=true ONLY when the note explicitly says no minimum was promised for that
+  deliverable. Never assume absence means waived.
+
+days_running: how many days the campaign has ALREADY been live, if the note says so (e.g. "running for
+9 days", "day 6 of 14", "launched last week"). null if the note doesn't say — never guess from context.
+This is the ONE thing that makes an in-flight campaign different from a brand-new one, so read it
+carefully; it is NOT the same as duration_days (the campaign's total planned length).
+
+Hard prohibitions (identical reasoning to the single-creator note, applied campaign-wide):
+- NEVER output avg_reach, avg_engagement_rate, or any performance number for any creator — those are
+  estimated by the server from follower count, never by you.
+- NEVER output required_disclosure as empty or implied-waived at the campaign level — disclosure can
+  never be waived. If the note doesn't state one, output null and let the server apply its own default.
+- NEVER compute a calendar date. Only emit due_in_days (per deliverable) and days_running (for the
+  campaign) as integer day counts; the server does all date arithmetic against today's date.
+- One creator block per creator actually named — never invent a creator to round out a number mentioned
+  in passing (e.g. "signing about 10 creators this week" names no one; emit an empty creators list).
+
+Example — "New 14-day GlowLeaf relaunch, already running for 5 days. Signed @glowgirlpriya for 1 reel,
+₹20k, min reach 15k, due in 3 days. Also @riya.unfiltered for 2 stories, barter worth ₹6k, no reach
+guarantee, due day 8." ->
+{"campaign": {"name": "GlowLeaf relaunch", "brand_name": "GlowLeaf", "product": null,
+  "duration_days": 14, "days_running": 5, "required_disclosure": null, "required_tag": null,
+  "required_hashtag": null, "requires_link_sticker": null, "banned_claims": null},
+ "creators": [
+   {"creator": {"handle": "glowgirlpriya", "raw_name": null, "followers": null, "tier": null, "niche": null},
+    "deliverables": [{"format": "reel", "deal_type": "paid", "fee": 20000, "barter_value": null,
+      "bonus_threshold": null, "bonus_amount": null, "min_reach": 15000, "min_reach_explicitly_none": false,
+      "due_in_days": 3, "required_tag": null, "required_hashtag": null, "requires_link_sticker": null,
+      "waived_notes": {}}]},
+   {"creator": {"handle": "riya.unfiltered", "raw_name": null, "followers": null, "tier": null, "niche": null},
+    "deliverables": [
+      {"format": "story", "deal_type": "barter", "fee": null, "barter_value": 6000, "bonus_threshold": null,
+       "bonus_amount": null, "min_reach": null, "min_reach_explicitly_none": true, "due_in_days": null,
+       "required_tag": null, "required_hashtag": null, "requires_link_sticker": null, "waived_notes": {}},
+      {"format": "story", "deal_type": "barter", "fee": null, "barter_value": 6000, "bonus_threshold": null,
+       "bonus_amount": null, "min_reach": null, "min_reach_explicitly_none": true, "due_in_days": null,
+       "required_tag": null, "required_hashtag": null, "requires_link_sticker": null, "waived_notes": {}}
+    ]}
+ ]}"""
+
+
+def _extract_campaign_json(text: str | None) -> dict | None:
+    """Mirrors _extract_json below, but validates the campaign-brief shape
+    (a "campaign" dict plus a "creators" list) instead of a single creator's
+    "deliverables" list."""
+    if not text:
+        return None
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("```")[1]
+        cleaned = cleaned[4:] if cleaned.startswith("json") else cleaned
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        return None
+    try:
+        parsed = json.loads(cleaned[start:end + 1])
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("campaign"), dict) or not isinstance(parsed.get("creators"), list):
+        return None
+    return parsed
+
+
+def parse_campaign_brief(ai_enabled: bool, brief_text: str, known_handles: list[str]) -> dict:
+    """The campaign-scope analogue of parse_deal_brief, for entering a whole
+    campaign (app/campaign_intake.py) rather than one creator deal into an
+    existing one. Same non-negotiable rule: the caller never structurally
+    trusts this result — campaign_intake.py's normalize_campaign_draft and
+    validate_campaign_draft run on it regardless of which path produced it."""
+    if ai_enabled:
+        user_prompt = f"Known existing creator handles: {', '.join(known_handles)}.\n\nNote: {brief_text}"
+        text = call_ai(_CAMPAIGN_BRIEF_SYSTEM_PROMPT, user_prompt, max_tokens=1800, temperature=0.1)
+        parsed = _extract_campaign_json(text)
+        if parsed is not None:
+            return {**parsed, "source": "ai", "brief_text": brief_text}
+    fallback = tpl.parse_campaign_brief_fallback(brief_text, known_handles)
+    return {**fallback, "source": "template", "brief_text": brief_text}
 
 
 def _extract_json(text: str | None) -> dict | None:

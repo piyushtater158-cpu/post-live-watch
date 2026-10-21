@@ -76,3 +76,12 @@ intake:
     mid: 0.045
     micro: 0.060
   max_deliverables_per_brief: 10       # a garbled parse must not insert hundreds of rows
+
+# Campaign intake (app/campaign_intake.py): entering a brand-new or already-running
+# campaign — the account manager's own analogue of the single-creator intake above.
+campaign_intake:
+  max_creators_per_brief: 50           # a garbled parse must not insert hundreds of creators
+  max_duration_days: 180
+  default_duration_days: 14
+  default_required_disclosure: "#ad|paid partnership"  # used only when a brief never states one;
+                                                          # still never waivable (see validate_campaign_draft)

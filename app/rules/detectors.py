@@ -96,6 +96,10 @@ def rule_5_underperforming(ctx: PostContext, t: dict) -> dict | None:
     latest = ctx.latest_snapshot
     if latest is None:
         return None
+    if not ctx.reach_known:
+        return None  # this snapshot's source (e.g. the public metrics tier) never
+                     # carries reach — app/rules/engine.py's data_notes surfaces
+                     # that gap separately, so it's never mistaken for "no flag"
     if ctx.min_reach is None:
         return None  # no reach guarantee was negotiated for this deal (e.g. barter) — nothing to underperform against
     reach = latest["reach"]
@@ -240,7 +244,7 @@ def rule_11_competitor_post(ctx: PostContext, t: dict) -> dict | None:
 
 def rule_12_viral_winner(ctx: PostContext, t: dict) -> dict | None:
     latest = ctx.latest_snapshot
-    if latest is None or ctx.creator_avg_reach <= 0:
+    if latest is None or ctx.creator_avg_reach <= 0 or not ctx.reach_known:
         return None
     multiplier = latest["reach"] / ctx.creator_avg_reach
     if multiplier < t["viral_multiplier"]:

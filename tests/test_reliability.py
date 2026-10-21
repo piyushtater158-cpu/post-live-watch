@@ -21,7 +21,7 @@ def new_barter_creator(conn):
                           "required_tag": None, "required_hashtag": None, "required_disclosure": None,
                           "requires_link_sticker": None, "waived_notes": {}}],
     }
-    result = commit_intake(conn, draft, campaign_row(conn), load_thresholds())
+    result = commit_intake(conn, draft, campaign_row(conn, 1), load_thresholds())
     yield result["creator_id"]
     for t in TABLES:
         conn.execute(f"DELETE FROM {t} WHERE id > ?", (high[t],))
@@ -29,13 +29,13 @@ def new_barter_creator(conn):
 
 
 def test_new_creator_with_nothing_due_has_no_score(conn, new_barter_creator):
-    r = compute_reliability(conn, new_barter_creator, current_day=1)
+    r = compute_reliability(conn, 1, new_barter_creator, current_day=1)
     assert r["score"] is None and r["campaigns_considered"] == 0
     assert r["book_again_hint"].startswith("New")
 
 
 def test_barter_deal_is_not_scored_as_zero_performance(conn, new_barter_creator):
-    r = compute_reliability(conn, new_barter_creator, current_day=5)  # due day 3 + 1-day grace: now "not posted"
+    r = compute_reliability(conn, 1, new_barter_creator, current_day=5)  # due day 3 + 1-day grace: now "not posted"
     assert r["campaigns_considered"] == 1
     assert r["avg_performance_ratio"] is None
     assert r["on_time_rate"] == 0.0 and r["score"] is not None
@@ -43,7 +43,7 @@ def test_barter_deal_is_not_scored_as_zero_performance(conn, new_barter_creator)
 
 def test_reliability_score_in_range_for_all_creators(conn):
     for creator_id in range(1, 21):
-        r = compute_reliability(conn, creator_id, current_day=7)
+        r = compute_reliability(conn, 1, creator_id, current_day=7)
         assert 0 <= r["score"] <= 100
         assert r["campaigns_considered"] >= 1
         assert r["book_again_hint"] in {
@@ -52,6 +52,6 @@ def test_reliability_score_in_range_for_all_creators(conn):
 
 
 def test_not_posted_creator_scores_lower_than_healthy_creator(conn):
-    ghosted = compute_reliability(conn, creator_id=2, current_day=7)   # not_posted
-    healthy = compute_reliability(conn, creator_id=1, current_day=7)   # healthy
+    ghosted = compute_reliability(conn, 1, creator_id=2, current_day=7)   # not_posted
+    healthy = compute_reliability(conn, 1, creator_id=1, current_day=7)   # healthy
     assert ghosted["score"] < healthy["score"]

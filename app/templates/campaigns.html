@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Campaigns · Post-Live Watch{% endblock %}
+{% block content %}
+<main class="wrap">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Campaign management</p>
+      <h1>Campaigns</h1>
+    </div>
+    <a class="btn approve" href="/campaigns/new">New campaign</a>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Campaign</th>
+          <th scope="col">Brand</th>
+          <th scope="col">Day</th>
+          <th scope="col">Clock</th>
+          <th scope="col">Status</th>
+          <th scope="col">Metrics</th>
+          <th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in campaigns %}
+        <tr>
+          <td>{% if c.id == campaign_id %}<b>{{ c.name }}</b> <span class="chip ok">Active in app</span>{% else %}{{ c.name }}{% endif %}</td>
+          <td class="muted">{{ c.brand_name }}</td>
+          <td class="mono">{{ c.current_day }}/{{ c.duration_days }}</td>
+          <td>
+            <span class="muted">{{ c.clock_mode | capitalize }}</span>
+            <form method="post" action="/campaigns/{{ c.id }}/clock" style="display:inline">
+              <input type="hidden" name="mode" value="{{ 'simulated' if c.clock_mode == 'live' else 'live' }}">
+              <button class="btn ghost" type="submit" style="padding:2px 8px;font-size:11px">
+                Switch to {{ 'simulated' if c.clock_mode == 'live' else 'live' }}
+              </button>
+            </form>
+          </td>
+          <td class="muted">{{ c.status | capitalize }}</td>
+          <td class="muted">{{ c.metrics_provider | capitalize }}</td>
+          <td style="display:flex;gap:8px;flex-wrap:wrap">
+            {% if c.id != campaign_id %}
+            <form method="post" action="/campaigns/select" style="display:inline">
+              <input type="hidden" name="campaign_id" value="{{ c.id }}">
+              <button class="btn" type="submit">Switch to this</button>
+            </form>
+            {% endif %}
+            <a class="btn" href="/campaigns/{{ c.id }}/edit">Edit</a>
+            {% if c.id == campaign_id %}<a class="btn" href="/intake">Add creators</a>{% endif %}
+            {% if c.metrics_provider == 'instagram' %}
+            <button class="btn" type="button" hx-post="/campaigns/{{ c.id }}/sync" hx-target="#sync-result" hx-swap="outerHTML">Sync now</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div id="sync-result"></div>
+
+  {% if not campaigns %}
+  <div class="empty">
+    <p>No campaigns yet.</p>
+    <small><a href="/campaigns/new">Create the first one</a></small>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

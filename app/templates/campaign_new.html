@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}New Campaign · Post-Live Watch{% endblock %}
+{% block content %}
+<main class="wrap narrow">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Campaign intake</p>
+      <h1>New Campaign</h1>
+    </div>
+    <p class="meta mono">Brand-new or already running — a human confirms before anything is created</p>
+  </div>
+
+  <form class="panel" style="flex-direction:column;align-items:stretch;gap:16px" hx-post="/campaigns/parse" hx-target="#campaign-preview" hx-swap="outerHTML">
+    <div class="fieldgrid">
+      <div class="field">
+        <label for="name">Campaign name</label>
+        <input id="name" type="text" name="name" placeholder="e.g. GlowLeaf Vitamin C Serum Launch" required>
+      </div>
+      <div class="field">
+        <label for="brand_name">Brand</label>
+        <input id="brand_name" type="text" name="brand_name" placeholder="New brand name" list="brand-list">
+        <datalist id="brand-list">{% for b in brands %}<option value="{{ b.name }}">{% endfor %}</datalist>
+      </div>
+      <div class="field">
+        <label for="duration_days">Duration (days)</label>
+        <input id="duration_days" type="number" name="duration_days" min="1" value="{{ default_duration_days }}">
+      </div>
+      <div class="field">
+        <label for="days_running">Already running for (days)</label>
+        <input id="days_running" type="number" name="days_running" min="0" placeholder="blank = starts today">
+      </div>
+      <div class="field">
+        <label for="required_disclosure">Disclosure (accepted tokens, '|'-separated)</label>
+        <input id="required_disclosure" type="text" name="required_disclosure" value="{{ default_required_disclosure }}">
+      </div>
+      <div class="field">
+        <label for="required_tag">Brand tag</label>
+        <input id="required_tag" type="text" name="required_tag" placeholder="@brandhandle">
+      </div>
+      <div class="field">
+        <label for="required_hashtag">Campaign hashtag</label>
+        <input id="required_hashtag" type="text" name="required_hashtag" placeholder="#CampaignHashtag">
+      </div>
+      <div class="field">
+        <label><input type="checkbox" name="requires_link_sticker" checked style="width:auto;display:inline"> Require link sticker on Stories</label>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label for="banned_claims_text">Banned claims (one per line)</label>
+        <textarea id="banned_claims_text" name="banned_claims_text" placeholder="cures acne&#10;100% natural" style="min-height:70px"></textarea>
+      </div>
+    </div>
+
+    <label for="creators_brief_text" class="lbl">Creators &amp; deals — paste a brief, or type one line per creator</label>
+    <textarea id="creators_brief_text" name="creators_brief_text" placeholder="e.g. @glowgirlpriya for 1 reel, ₹20k, min reach 15k, due in 3 days. @riya.unfiltered for 2 stories, barter worth ₹6k, no reach guarantee, due day 8." required></textarea>
+    <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" type="button" onclick="document.getElementById('creators_brief_text').value=this.dataset.example" data-example="@glowgirlpriya for 1 reel, ₹20k, min reach 15k, due in 3 days. @riya.unfiltered for 2 stories, barter worth ₹6k, no reach guarantee, due day 8.">Example: two creators, mixed deal types</button>
+    </div>
+
+    <div class="row" style="display:flex;justify-content:flex-end">
+      <button class="btn approve" type="submit">{{ 'Draft the campaign' if ai_enabled else 'Draft the campaign (keyword mode)' }}</button>
+    </div>
+  </form>
+
+  <div id="campaign-preview" class="list">
+    <div class="empty">
+      <p>Nothing drafted yet.</p>
+      <small>Fill in the campaign basics and the creator deals above, then draft — nothing is created until you review and confirm.</small>
+    </div>
+  </div>
+</main>
+{% endblock %}

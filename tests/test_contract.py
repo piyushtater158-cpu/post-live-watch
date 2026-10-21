@@ -98,7 +98,7 @@ def test_hashtag_waived_creator_has_no_duplicate_note(conn):
 
 
 def test_creator1_rollup_reflects_worst_deliverable(conn):
-    deliverables = _creator_deliverables(conn, creator_id=1, current_day=7)
+    deliverables = _creator_deliverables(conn, campaign_id=1, creator_id=1, current_day=7)
     assert len(deliverables) == 3  # reel + 2 stories
     rollup = _rollup_campaign_status(deliverables)
     # Post 22 (story, no screenshot) fires rule 10 by day 7 -> status can't stay "OK"
@@ -110,7 +110,7 @@ def test_creator1_rollup_reflects_worst_deliverable(conn):
 def test_reliability_aggregates_across_all_deliverables(conn):
     # Creator 1 now has 3 deliverables; compute_reliability must not silently
     # score against just one of them.
-    r = compute_reliability(conn, creator_id=1, current_day=7)
+    r = compute_reliability(conn, campaign_id=1, creator_id=1, current_day=7)
     assert 0 <= r["score"] <= 100
 
 

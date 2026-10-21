@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "content_id": "17900000000000001",
+      "caption": "New skincare era unlocked ✨ #ad @glowleaf #GlowWithGlowLeaf #skincare",
+      "permalink": "https://www.instagram.com/p/branded-sample-1/",
+      "creation_time": "2026-09-01T10:15:00+0000",
+      "media_type": "VIDEO",
+      "organic_insights": {
+        "likes": 4200,
+        "comments": 310,
+        "views": 58000,
+        "reach": 52000,
+        "shares": 140,
+        "interaction": 4650,
+        "saves": 520
+      }
+    }
+  ],
+  "paging": {
+    "cursors": {"before": "AQAB1", "after": "AQAB2"}
+  }
+}
