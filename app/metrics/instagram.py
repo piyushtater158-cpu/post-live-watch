@@ -42,6 +42,15 @@ from .base import MetricsProvider, NotConfigured, PostMetrics
 
 GRAPH_VERSION_DEFAULT = "v21.0"
 REQUEST_TIMEOUT = 15.0
+REQUIRED_ENV = ("META_BUSINESS_ID", "META_IG_BUSINESS_ID", "META_SYSTEM_USER_TOKEN")
+
+
+def missing_env() -> list[str]:
+    return [name for name in REQUIRED_ENV if not os.environ.get(name)]
+
+
+def graph_version() -> str:
+    return os.environ.get("META_GRAPH_VERSION") or GRAPH_VERSION_DEFAULT
 
 # organic_insights' field names, verified against Meta's Partnership Ads
 # Advertisable Content API docs (Oct 2026) — likes/comments/views/reach/
@@ -57,11 +66,10 @@ class InstagramProvider(MetricsProvider):
         self.business_id = os.environ.get("META_BUSINESS_ID")
         self.ig_business_id = os.environ.get("META_IG_BUSINESS_ID")
         self.token = os.environ.get("META_SYSTEM_USER_TOKEN")
-        self.graph_version = os.environ.get("META_GRAPH_VERSION") or GRAPH_VERSION_DEFAULT
-        if not (self.business_id and self.ig_business_id and self.token):
-            raise NotConfigured(
-                "META_BUSINESS_ID / META_IG_BUSINESS_ID / META_SYSTEM_USER_TOKEN not set — see docs/meta-setup.md"
-            )
+        self.graph_version = graph_version()
+        missing = missing_env()
+        if missing:
+            raise NotConfigured(f"{' / '.join(missing)} not set — see docs/meta-setup.md")
         self._base_url = f"https://graph.facebook.com/{self.graph_version}"
 
     def _get(self, path: str, params: dict) -> dict:
@@ -140,6 +148,27 @@ class InstagramProvider(MetricsProvider):
             except Exception:
                 out = []
         return out
+
+    def check_connection(self) -> dict:
+        """Reads the brand's own IG Professional account with the configured
+        token — the cheapest call that proves the token is valid and the
+        account id is right. Raises on any HTTP/permission error so the
+        caller can show Meta's message verbatim."""
+        data = self._get(str(self.ig_business_id), {"fields": "id,username,name,followers_count,media_count"})
+        return {
+            "ig_business_id": data.get("id"),
+            "username": data.get("username"),
+            "name": data.get("name"),
+            "followers": data.get("followers_count"),
+            "media_count": data.get("media_count"),
+        }
+
+    def resolve_ig_user_id(self, handle: str) -> str | None:
+        try:
+            data = self._get(str(self.ig_business_id), {"fields": f"business_discovery.username({handle}){{id}}"})
+        except Exception:
+            return None
+        return (data.get("business_discovery") or {}).get("id")
 
     def resolve_creator(self, handle: str) -> dict | None:
         """Pre-signing research: followers + a measured engagement rate from

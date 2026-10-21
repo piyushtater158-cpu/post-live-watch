@@ -1,9 +1,130 @@
 export type Status = "Act now" | "Needs a look" | "OK";
 
+export type ClockMode = "live" | "simulated";
+export type MetricsProvider = "seeded" | "manual" | "instagram";
+
+export interface CampaignSummary {
+  id: number;
+  name: string;
+  brand_name: string;
+  duration_days: number;
+  current_day: number;
+  clock_mode: ClockMode;
+  status: string;
+  metrics_provider: MetricsProvider;
+}
+
+/** campaign_id is null only when no campaign exists yet. */
 export interface AppState {
+  campaign_id: number | null;
+  campaign_name: string | null;
+  brand_name: string | null;
   current_day: number;
   ai_enabled: boolean;
   duration_days: number;
+  clock_mode: ClockMode;
+  campaigns: CampaignSummary[];
+}
+
+/** A campaigns table row, as GET /api/campaigns/{id} returns it. */
+export interface CampaignRow {
+  id: number;
+  brand_id: number;
+  name: string;
+  start_date: string;
+  duration_days: number;
+  required_disclosure: string;
+  required_tag: string;
+  required_hashtag: string;
+  requires_link_sticker: number;
+  banned_claims: string | null;
+  metrics_provider: MetricsProvider;
+}
+
+export interface CampaignEditIn {
+  name: string;
+  required_disclosure: string;
+  required_tag: string;
+  required_hashtag: string;
+  requires_link_sticker: boolean;
+  duration_days: number;
+  banned_claims: string[];
+  metrics_provider: MetricsProvider;
+}
+
+export interface CampaignFormDefaults {
+  brands: { id: number; name: string; product: string }[];
+  default_duration_days: number;
+  max_duration_days: number;
+  default_required_disclosure: string;
+}
+
+export interface CampaignFieldsIn {
+  name: string;
+  existing_brand_id: number | null;
+  brand_name: string;
+  product: string;
+  duration_days: number | null;
+  days_running: number | null;
+  required_disclosure: string;
+  required_tag: string;
+  required_hashtag: string;
+  requires_link_sticker: boolean;
+  banned_claims: string[];
+}
+
+export interface CampaignDraft {
+  source: string;
+  brief_text: string;
+  campaign: CampaignFieldsIn & { start_date: string };
+  creators: (Omit<IntakeDraft, "source" | "brief_text"> & { source: string; brief_text: string })[];
+  warnings: FieldMessage[];
+}
+
+export interface CampaignIntakeResponse {
+  draft: CampaignDraft;
+  blocking_errors: FieldMessage[];
+  result: { campaign_id: number; brand_id: number; creators: { creator_id: number }[] } | null;
+}
+
+export interface SyncResult {
+  campaign_id: number;
+  provider: string;
+  status: "ok" | "partial" | "error" | "not_configured" | "not_applicable";
+  posts_attempted: number;
+  posts_updated: number;
+  errors: ({ message: string; creator_handle?: string; ig_media_id?: string } | string)[];
+}
+
+export interface FetchRun extends Omit<SyncResult, "campaign_id"> {
+  id: number;
+  campaign_id: number;
+  campaign_name: string;
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface InstagramStatus {
+  configured: boolean;
+  missing_env: string[];
+  required_env: string[];
+  graph_version: string;
+  instagram_campaigns: CampaignSummary[];
+  recent_runs: FetchRun[];
+}
+
+export interface InstagramTest {
+  ok: boolean;
+  error: string | null;
+  account: { ig_business_id: string; username: string; name: string | null; followers: number | null; media_count: number | null } | null;
+}
+
+export interface CreatorResearch {
+  handle: string;
+  followers: number;
+  media_count: number | null;
+  avg_engagement_rate: number | null;
+  recent_captions: string[];
 }
 
 export interface ContractNote {

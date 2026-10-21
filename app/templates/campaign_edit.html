@@ -40,6 +40,14 @@
         <input id="required_hashtag" type="text" name="required_hashtag" value="{{ campaign.required_hashtag }}">
       </div>
       <div class="field">
+        <label for="metrics_provider">Metrics source</label>
+        <select id="metrics_provider" name="metrics_provider">
+          {% if campaign.metrics_provider == 'seeded' %}<option value="seeded" selected>Seeded demo data</option>{% endif %}
+          <option value="manual" {% if campaign.metrics_provider == 'manual' %}selected{% endif %}>Manual entry</option>
+          <option value="instagram" {% if campaign.metrics_provider == 'instagram' %}selected{% endif %}>Instagram (Meta API)</option>
+        </select>
+      </div>
+      <div class="field">
         <label><input type="checkbox" name="requires_link_sticker" {% if campaign.requires_link_sticker %}checked{% endif %} style="width:auto;display:inline"> Require link sticker on Stories (campaign default)</label>
       </div>
       <div class="field" style="grid-column:1/-1">

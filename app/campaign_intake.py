@@ -35,6 +35,7 @@ from datetime import datetime, timedelta
 from app import intake
 
 MAX_NAME_LENGTH = 200
+METRICS_PROVIDERS = ("seeded", "manual", "instagram")
 
 
 class CampaignValidationError(Exception):
@@ -259,6 +260,10 @@ def validate_campaign_edit(fields: dict, thresholds: dict) -> list[dict]:
         json.dumps(fields.get("banned_claims") or [])
     except TypeError:
         errors.append({"field": "banned_claims", "message": "Banned claims must be plain text.", "blocking": True})
+    provider = fields.get("metrics_provider")
+    if provider is not None and provider not in METRICS_PROVIDERS:
+        errors.append({"field": "metrics_provider",
+                        "message": f"Metrics source must be one of: {', '.join(METRICS_PROVIDERS)}.", "blocking": True})
     return errors
 
 
@@ -279,6 +284,8 @@ def update_campaign_fields(conn: sqlite3.Connection, campaign_id: int, fields: d
          fields.get("required_hashtag") or "", int(bool(fields.get("requires_link_sticker"))),
          fields["duration_days"], json.dumps(fields.get("banned_claims") or []), campaign_id),
     )
+    if fields.get("metrics_provider"):
+        conn.execute("UPDATE campaigns SET metrics_provider = ? WHERE id = ?", (fields["metrics_provider"], campaign_id))
     conn.commit()
     return intake.campaign_row(conn, campaign_id)
 

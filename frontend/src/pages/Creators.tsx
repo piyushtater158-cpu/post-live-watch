@@ -4,7 +4,7 @@ import { api } from "../api";
 import { SortableTable, type Column } from "../components/SortableTable";
 import { Chip, ErrorBox, Loading } from "../components/Status";
 import { capitalize, hintClass, hintRank, statusRank } from "../format";
-import { usePageData } from "../state";
+import { useAppState, usePageData } from "../state";
 import type { CreatorSummary } from "../types";
 
 const columns: Column<CreatorSummary>[] = [
@@ -64,6 +64,7 @@ const columns: Column<CreatorSummary>[] = [
 ];
 
 export default function Creators() {
+  const { state } = useAppState();
   const { data, error, reload } = usePageData(api.creators);
 
   useEffect(() => {
@@ -77,7 +78,11 @@ export default function Creators() {
           <p className="eyebrow">Roster</p>
           <h1>Creators</h1>
         </div>
-        {data && <p className="meta mono">{data.creators.length} creators on GlowLeaf</p>}
+        {data && (
+          <p className="meta mono">
+            {data.creators.length} creators in the roster · rollup shown for {state?.campaign_name}
+          </p>
+        )}
       </div>
       {error && <ErrorBox message={error} onRetry={reload} />}
       {!data && !error && <Loading />}

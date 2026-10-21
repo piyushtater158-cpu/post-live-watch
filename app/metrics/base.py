@@ -64,3 +64,8 @@ class MetricsProvider:
         """Pre-signing research: {followers, media_count, avg_engagement_rate,
         recent_captions}, or None if this provider can't look the handle up."""
         return None
+
+    def resolve_ig_user_id(self, handle: str) -> str | None:
+        """The creator's numeric IG user id, which the branded-content tier
+        needs to filter partner posts by creator. None if unknown."""
+        return None

@@ -4,3 +4,10 @@
 .errbox{background:var(--act-bg);color:var(--act-fg);border:1px solid #F0B9B3;border-radius:12px;padding:16px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
 .errbox p{margin:0;font-size:14px;font-weight:500}
 .errbox .btn{margin-left:auto}
+.ctl:disabled{opacity:.4;cursor:not-allowed}
+.controls .campaign-select{width:auto;max-width:280px;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--chrome-line);background:var(--chrome-2);color:#E8EAEE;font:500 13px/1 var(--sans)}
+.td-actions{display:flex;gap:8px;flex-wrap:wrap}
+.td-actions .btn{min-height:34px;padding:0 12px;font-size:13px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0;font-size:14px}
+.kv dt{font:600 11px/1.6 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kv dd{margin:0;color:var(--ink-2)}

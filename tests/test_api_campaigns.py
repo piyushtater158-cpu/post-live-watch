@@ -148,6 +148,25 @@ def test_edit_updates_campaign_fields(client, conn):
     assert updated["requires_link_sticker"] == 0
 
 
+def test_edit_switches_metrics_provider_to_instagram(client, conn):
+    draft = _parse(client).json()["draft"]
+    campaign_id = client.post("/api/campaigns/confirm", json={"action": "approve", "original_draft": draft}).json()["result"]["campaign_id"]
+    base = {"name": "X", "required_disclosure": "#ad", "duration_days": 10, "banned_claims": []}
+
+    assert client.post(f"/api/campaigns/{campaign_id}/edit", json=base).json()["metrics_provider"] == "manual"  # unchanged
+    resp = client.post(f"/api/campaigns/{campaign_id}/edit", json={**base, "metrics_provider": "instagram"})
+    assert resp.status_code == 200 and resp.json()["metrics_provider"] == "instagram"
+    assert client.post(f"/api/campaigns/{campaign_id}/edit", json={**base, "metrics_provider": "tiktok"}).status_code == 422
+
+
+def test_campaign_defaults_shape(client):
+    data = client.get("/api/campaign-defaults").json()
+    assert data["default_duration_days"] == 14
+    assert data["max_duration_days"] == 180
+    assert "#ad" in data["default_required_disclosure"]
+    assert any(b["name"] == "GlowLeaf" for b in data["brands"])
+
+
 def test_edit_rejects_blank_disclosure(client, conn):
     draft = _parse(client).json()["draft"]
     campaign_id = client.post("/api/campaigns/confirm", json={"action": "approve", "original_draft": draft}).json()["result"]["campaign_id"]

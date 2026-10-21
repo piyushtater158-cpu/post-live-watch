@@ -339,7 +339,7 @@ def campaign_edit_submit(
     request: Request, campaign_id: int,
     name: str = Form(...), required_disclosure: str = Form(...), required_tag: str = Form(""),
     required_hashtag: str = Form(""), requires_link_sticker: str = Form(""),
-    duration_days: str = Form(...), banned_claims_text: str = Form(""),
+    duration_days: str = Form(...), banned_claims_text: str = Form(""), metrics_provider: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
     thresholds = load_thresholds()
@@ -348,6 +348,7 @@ def campaign_edit_submit(
         "required_hashtag": required_hashtag, "requires_link_sticker": requires_link_sticker == "on",
         "duration_days": int(duration_days) if duration_days.strip() else None,
         "banned_claims": [line.strip() for line in banned_claims_text.splitlines() if line.strip()],
+        "metrics_provider": metrics_provider or None,
     }
     try:
         campaign_intake.update_campaign_fields(conn, campaign_id, fields, thresholds)

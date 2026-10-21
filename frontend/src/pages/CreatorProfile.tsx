@@ -3,10 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Chip, ContractNotes, ErrorBox, Loading } from "../components/Status";
 import { capitalize, commas, hintClass } from "../format";
-import { usePageData } from "../state";
+import { useAppState, usePageData } from "../state";
 
 export default function CreatorProfile() {
   const id = Number(useParams().id);
+  const campaignName = useAppState().state?.campaign_name;
   const { data, error, reload } = usePageData(() => api.creator(id), [id]);
 
   useEffect(() => {
@@ -108,7 +109,7 @@ export default function CreatorProfile() {
       {current_deliverables.length > 0 && (
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="head">
-            <h2>Current campaign · GlowLeaf</h2>
+            <h2>Current campaign · {campaignName}</h2>
           </div>
           {current_deliverables.map((d) => (
             <div className="panel" key={d.post_id}>

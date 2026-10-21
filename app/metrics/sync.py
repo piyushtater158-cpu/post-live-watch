@@ -125,6 +125,14 @@ def sync_campaign(conn: sqlite3.Connection, campaign_id: int, provider: MetricsP
                 continue
             posts_attempted += len(deliverables)
 
+            # Branded content (the only tier with reach) filters by the creator's
+            # numeric IG id; resolve it once and cache it on the creator row.
+            if not creator["ig_user_id"]:
+                resolved = provider.resolve_ig_user_id(creator["handle"])
+                if resolved:
+                    conn.execute("UPDATE creators SET ig_user_id = ? WHERE id = ?", (resolved, creator["id"]))
+                    creator["ig_user_id"] = resolved
+
             try:
                 media_items = provider.fetch_creator_media(creator["ig_user_id"], creator["handle"])
             except Exception as exc:
@@ -230,6 +238,14 @@ def run_sync(conn: sqlite3.Connection, campaign_id: int) -> dict:
     except NotConfigured as exc:
         return _write_fetch_run(conn, campaign_id, "instagram", started_at, 0, 0, "not_configured", [str(exc)])
     return sync_campaign(conn, campaign_id, provider)
+
+
+def recent_fetch_runs(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
+    rows = conn.execute(
+        "SELECT r.*, c.name AS campaign_name FROM fetch_runs r JOIN campaigns c ON c.id = r.campaign_id "
+        "ORDER BY r.id DESC LIMIT ?", (limit,),
+    ).fetchall()
+    return [{**dict(r), "errors": json.loads(r["errors"]) if r["errors"] else []} for r in rows]
 
 
 def _write_fetch_run(conn: sqlite3.Connection, campaign_id: int, provider_name: str, started_at: str,
