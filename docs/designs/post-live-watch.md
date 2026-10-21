@@ -19,6 +19,12 @@ The rules-first/AI-on-top split is the whole point: every flag traces to a confi
 - Thresholds must live in one editable config file, not scattered in code.
 - Must work end-to-end with AI fully off.
 
+> **Update (Oct 2026):** the "no live IG API" constraint above describes this
+> MVP's original 4-5 hour build, not the app's current state. A later
+> extension added multi-campaign support and a real (gated, fixture-tested)
+> Instagram connector — see `docs/meta-setup.md`. All data here is still
+> labelled SAMPLE DATA; the connector is simply no longer hypothetical.
+
 ## Premises
 1. **Local-run + self-hosted artifact, not a throwaway demo.** README + one-command startup is the baseline; it also runs live on the user's own Oracle Cloud VM (already hosting their n8n instance) via Docker, fronted by their existing reverse proxy. — agreed, revised from "optional hosting" to "actually deploy it."
 2. **SQLite is the right database, not a shortcut.** Of the 12 detectors, only 4 get an AI *enhancement* layered on top of an already-fired rule (underperform explanation, Hinglish/sarcasm sentiment, paraphrase detection, boost suggestion) — 8 are pure deterministic checks. This is a rules engine with a thin language layer, not an AI-heavy app, at a tiny data volume (~20 creators, ≤100 posts, a few thousand rows total, one AM user, no concurrent writers). Postgres would add an operable service for zero correctness benefit. SQLite as a single file also makes the day-simulator trivial (advance a `current_day` pointer, re-query) and resets trivial (swap the file). Self-hosting on a real VM removes the "ephemeral filesystem" problem serverless would have created. — confirmed after explicit challenge.

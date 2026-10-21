@@ -309,6 +309,71 @@ def build_history(cid: int) -> list[dict]:
     return rows
 
 
+# A SECOND campaign, overlapping two creators with campaign 1's roster (ids 1
+# and 7) — this is the standing regression guard for the campaign-scoping bug
+# dashboard.py/reliability.py used to have (no campaign_id filter, correct only
+# because exactly one campaign existed; see tests/test_campaign_scoping.py).
+# Also a live-clock campaign (day_override NULL) rather than simulated, and one
+# deliverable on the public metrics tier (reach=NULL) so the unknown-reach path
+# (app/rules/engine.py's data_notes, dashboard.get_overview's reach_known_count)
+# is visible in the demo permanently, not just under test.
+_SECOND_CAMPAIGN_CREATOR_IDS = (1, 7, 10, 15)  # glow_with_meera + glowgirlpriya overlap campaign 1
+
+
+def seed_second_campaign(conn) -> None:
+    brand_id = conn.execute(
+        "INSERT INTO brands (name, product) VALUES ('LumaDerm', 'Niacinamide Serum')"
+    ).lastrowid
+    start = datetime.now() - timedelta(days=5)
+    campaign_id = conn.execute(
+        "INSERT INTO campaigns (brand_id, name, start_date, duration_days, required_disclosure, "
+        "required_tag, required_hashtag, requires_link_sticker, banned_claims, day_override, "
+        "status, metrics_provider, created_at) VALUES "
+        "(?, 'LumaDerm Niacinamide Launch', ?, 14, '#ad|paid partnership', '@lumaderm', "
+        "'#LumaDermGlow', 1, '[]', NULL, 'active', 'instagram', ?)",
+        (brand_id, start.replace(hour=0, minute=0, second=0, microsecond=0).isoformat(), start.isoformat()),
+    ).lastrowid
+
+    fees = {1: 60000, 7: 17000, 10: 8500, 15: 7500}
+    min_reach = {1: 45000, 7: 16000, 10: 6500, 15: 5500}
+    formats = {1: "reel", 7: "carousel", 10: "reel", 15: "reel"}
+
+    for creator_id in _SECOND_CAMPAIGN_CREATOR_IDS:
+        creator = next(c for c in CREATORS if c["id"] == creator_id)
+        promised = start + timedelta(days=1, hours=9)
+        deliverable_id = conn.execute(
+            "INSERT INTO deliverables (campaign_id, creator_id, format, fee, promised_date, min_reach) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (campaign_id, creator_id, formats[creator_id], fees[creator_id], promised.isoformat(),
+             min_reach[creator_id]),
+        ).lastrowid
+        caption = (
+            f"Obsessed with my new routine ✨ #ad @lumaderm #LumaDermGlow #skincare"
+        )
+        post_id = conn.execute(
+            "INSERT INTO posts (deliverable_id, posted_at, caption, original_caption, caption_edited_at, "
+            "link_sticker_present, permalink, is_story, screenshot_uploaded, deleted_at_day, "
+            "competitor_mentioned_day) VALUES (?, ?, ?, ?, NULL, 0, ?, 0, 0, NULL, NULL)",
+            (deliverable_id, promised.isoformat(), caption, caption, f"https://instagram.com/p/lumaderm-{creator_id}/"),
+        ).lastrowid
+
+        reach = round(creator["avg_reach"] * 0.9)
+        likes, comments, saves, shares = metrics_from_reach(reach, creator["avg_engagement_rate"])
+        if creator_id == 15:
+            # The public metrics tier: caption/likes/comments present, reach never available.
+            conn.execute(
+                "INSERT INTO post_snapshots (post_id, day_number, reach, likes, comments_count, saves, "
+                "shares, still_live, source) VALUES (?, 4, NULL, ?, ?, NULL, NULL, 1, 'public')",
+                (post_id, likes, comments),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO post_snapshots (post_id, day_number, reach, likes, comments_count, saves, "
+                "shares, still_live, source) VALUES (?, 4, ?, ?, ?, ?, ?, 1, 'seeded')",
+                (post_id, reach, likes, comments, saves, shares),
+            )
+
+
 def seed(reset: bool = False) -> None:
     if reset and DB_PATH.exists():
         DB_PATH.unlink()
@@ -324,10 +389,15 @@ def seed(reset: bool = False) -> None:
     conn.execute("INSERT INTO brands (id, name, product) VALUES (1, 'GlowLeaf', 'Vitamin C Serum')")
     conn.execute(
         "INSERT INTO campaigns (id, brand_id, name, start_date, duration_days, required_disclosure, "
-        "required_tag, required_hashtag, requires_link_sticker, banned_claims) VALUES "
-        "(1, 1, 'GlowLeaf Vitamin C Serum Launch', ?, ?, ?, ?, ?, 1, ?)",
+        "required_tag, required_hashtag, requires_link_sticker, banned_claims, day_override, "
+        "status, metrics_provider, created_at) VALUES "
+        "(1, 1, 'GlowLeaf Vitamin C Serum Launch', ?, ?, ?, ?, ?, 1, ?, ?, 'active', 'seeded', ?)",
+        # day_override=DURATION_DAYS keeps this demo campaign on the simulated clock
+        # (app/db.py:get_campaign_day) exactly as the Advance day / Reset to day 1
+        # buttons have always driven it — a live-clock campaign (day_override=NULL)
+        # is the new default for anything intaken in app/campaign_intake.py.
         (iso(CAMPAIGN_START), DURATION_DAYS, REQUIRED_DISCLOSURE, REQUIRED_TAG, REQUIRED_HASHTAG,
-         json.dumps(BANNED_CLAIMS)),
+         json.dumps(BANNED_CLAIMS), DURATION_DAYS, iso(CAMPAIGN_START)),
     )
 
     for c in CREATORS:
@@ -419,12 +489,16 @@ def seed(reset: bool = False) -> None:
             (did, reach, likes, cmts, saves, shares),
         )
 
-    set_state(conn, "current_day", str(DURATION_DAYS))
+    seed_second_campaign(conn)
+
+    # The day now lives per-campaign (campaigns.day_override, set above) rather than
+    # in a single global app_state key — app/db.py:get_campaign_day reads it.
+    set_state(conn, "selected_campaign_id", "1")
     set_state(conn, "ai_enabled", "1")
 
     conn.commit()
     conn.close()
-    print(f"Seeded {DB_PATH} — 20 creators, 1 live campaign (20 posts), 6 months of history.")
+    print(f"Seeded {DB_PATH} — 20 creators, 2 campaigns (one simulated, one live), 6 months of history.")
 
 
 if __name__ == "__main__":

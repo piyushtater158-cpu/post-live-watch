@@ -1,11 +1,11 @@
 {% extends "base_brand.html" %}
-{% block title %}GlowLeaf — Daily Report{% endblock %}
+{% block title %}{{ brand_name }} — Daily Report{% endblock %}
 {% block content %}
 <article class="page">
   <div class="letterhead">
     <div class="leaf">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c0-8 5-14 15-14 0 10-6 15-14 15"/><path d="M5 19 13 11"/></svg>
-      GlowLeaf
+      {{ brand_name }}
     </div>
     <span class="ro">
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>
@@ -14,8 +14,8 @@
   </div>
 
   <div class="titleblock" style="gap:12px">
-    <h1>GlowLeaf — Daily Report</h1>
-    <p class="date">Vitamin C Serum Launch · Day <span>{{ current_day }}</span> of {{ duration_days }}</p>
+    <h1>{{ brand_name }} — Daily Report</h1>
+    <p class="date">{{ campaign_name }} · Day <span>{{ current_day }}</span> of {{ duration_days }}</p>
   </div>
 
   <p class="narrative">{{ text }}</p>

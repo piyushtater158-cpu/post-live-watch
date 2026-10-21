@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Edit Campaign · Post-Live Watch{% endblock %}
+{% block content %}
+<main class="wrap narrow">
+  <div class="head">
+    <div class="titleblock">
+      <p class="eyebrow">Campaign management</p>
+      <h1>Edit {{ campaign.name }}</h1>
+    </div>
+    <p class="meta mono">Brand and start date aren't editable here — brand is really "make a new campaign"; the day clock has its own switch on the Campaigns page.</p>
+  </div>
+
+  {% if errors %}
+  <div class="vwarn">
+    <b>FIX</b>
+    <span>{% for e in errors %}{{ e.message }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+  </div>
+  {% endif %}
+
+  <form class="panel" style="flex-direction:column;align-items:stretch;gap:16px" method="post" action="/campaigns/{{ campaign.id }}/edit">
+    <div class="fieldgrid">
+      <div class="field">
+        <label for="name">Campaign name</label>
+        <input id="name" type="text" name="name" value="{{ campaign.name }}" required>
+      </div>
+      <div class="field">
+        <label for="duration_days">Duration (days)</label>
+        <input id="duration_days" type="number" name="duration_days" min="1" max="{{ max_duration_days }}" value="{{ campaign.duration_days }}" required>
+      </div>
+      <div class="field">
+        <label for="required_disclosure">Disclosure (accepted tokens, '|'-separated)</label>
+        <input id="required_disclosure" type="text" name="required_disclosure" value="{{ campaign.required_disclosure }}" required>
+      </div>
+      <div class="field">
+        <label for="required_tag">Brand tag</label>
+        <input id="required_tag" type="text" name="required_tag" value="{{ campaign.required_tag }}">
+      </div>
+      <div class="field">
+        <label for="required_hashtag">Campaign hashtag</label>
+        <input id="required_hashtag" type="text" name="required_hashtag" value="{{ campaign.required_hashtag }}">
+      </div>
+      <div class="field">
+        <label><input type="checkbox" name="requires_link_sticker" {% if campaign.requires_link_sticker %}checked{% endif %} style="width:auto;display:inline"> Require link sticker on Stories (campaign default)</label>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label for="banned_claims_text">Banned claims (one per line)</label>
+        <textarea id="banned_claims_text" name="banned_claims_text" style="min-height:70px">{{ campaign.banned_claims_text }}</textarea>
+      </div>
+    </div>
+    <div class="row" style="display:flex;justify-content:flex-end;gap:10px">
+      <a class="btn ghost" href="/campaigns">Cancel</a>
+      <button class="btn approve" type="submit">Save changes</button>
+    </div>
+  </form>
+</main>
+{% endblock %}

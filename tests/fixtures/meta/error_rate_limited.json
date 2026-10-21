@@ -1,0 +1,9 @@
+{
+  "error": {
+    "message": "Application request limit reached",
+    "type": "OAuthException",
+    "code": 4,
+    "error_subcode": 2446079,
+    "fbtrace_id": "B2c3D4e5F6g7H8i9"
+  }
+}

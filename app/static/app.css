@@ -136,6 +136,12 @@ th[aria-sort=ascending] .sort svg{transform:rotate(180deg)}
    rules-first philosophy means the two must never look alike. */
 .contractnote{margin:10px 22px 14px;display:flex;gap:10px;align-items:flex-start;background:var(--line-soft);color:var(--ink-2);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5}
 .contractnote b{flex:none;font:600 10px/1 var(--mono);letter-spacing:.08em;background:var(--ink-2);color:#fff;padding:4px 6px;border-radius:4px;margin-top:1px}
+/* .datanote: a metrics-source gap (e.g. the public Instagram tier never returns
+   reach) — amber like .estflag, since it's the same kind of fact (a deterministic
+   data-completeness caveat, never AI output), but its own class since it isn't
+   about a negotiated deal term the way .contractnote is. */
+.datanote{margin:10px 22px 14px;display:flex;gap:10px;align-items:flex-start;background:var(--look-bg);color:var(--look-fg);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5}
+.datanote b{flex:none;font:600 10px/1 var(--mono);letter-spacing:.08em;background:var(--look-fg);color:#fff;padding:4px 6px;border-radius:4px;margin-top:1px}
 .oppbox{margin:0 22px 14px;border:1px solid #B5C9F3;background:#EAF1FE;border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
 .oppbox .t{display:flex;align-items:center;gap:8px;font-weight:700;color:#123378;font-size:15px}
 .oppbox .t .mono{font-size:12px;font-weight:500;color:var(--opp-fg)}

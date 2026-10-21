@@ -1,0 +1,106 @@
+<div id="campaign-preview" class="list">
+{% if result %}
+  <article class="card">
+    <div class="strip ok" aria-hidden="true"></div>
+    <div class="card-head">
+      <span class="chip ok">Created</span>
+      <span class="handle">{{ draft.campaign.name }}</span>
+      <span class="fmt">{{ result.creators | length }} creator(s)</span>
+    </div>
+    <div class="row" style="padding:16px 22px;display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn approve" href="/campaigns">View campaigns</a>
+      <a class="btn" href="/intake">Add another creator</a>
+      <a class="btn ghost" href="/campaigns/new">Draft another campaign</a>
+    </div>
+  </article>
+
+{% elif not draft.creators and not draft.campaign.name %}
+  <div class="empty">
+    <p>Draft dismissed — nothing was created.</p>
+    <small><a href="/campaigns/new">Start a new campaign brief</a></small>
+  </div>
+
+{% else %}
+  <article class="card">
+    <div class="strip {{ 'act' if blocking_errors else 'ok' }}" aria-hidden="true"></div>
+    <div class="card-head">
+      <span class="chip ok">Draft</span>
+      <span class="handle">{{ draft.campaign.name or '(name not set)' }}</span>
+      <span class="fmt">{{ draft.creators | length }} creator(s)</span>
+    </div>
+
+    <div class="ainote">
+      <b>{{ 'AI' if draft.source == 'ai' else 'KEYWORD' }}</b>
+      <span>{% if draft.source == 'ai' %}AI draft — review every field before confirming.{% else %}Keyword draft (or typed form) — check every field carefully.{% endif %}</span>
+    </div>
+
+    {% if blocking_errors %}
+    <div class="vwarn">
+      <b>FIX</b>
+      <span>{% for e in blocking_errors %}{{ e.message }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+    {% if draft.warnings %}
+    <div class="estflag">
+      <b>CHECK</b>
+      <span>{% for w in draft.warnings %}{{ w.message }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:4px">
+      <span class="lbl">Campaign</span>
+      <p class="mono">
+        {{ draft.campaign.duration_days }} days
+        {% if draft.campaign.days_running %}&middot; already running {{ draft.campaign.days_running }} days{% else %}&middot; starts today{% endif %}
+        &middot; disclosure {{ draft.campaign.required_disclosure }}
+        {% if draft.campaign.required_tag %}&middot; tag {{ draft.campaign.required_tag }}{% endif %}
+        {% if draft.campaign.required_hashtag %}&middot; hashtag {{ draft.campaign.required_hashtag }}{% endif %}
+      </p>
+    </div>
+
+    <form hx-post="/campaigns/confirm" hx-target="#campaign-preview" hx-swap="outerHTML">
+      <input type="hidden" name="original_draft" value='{{ draft | tojson }}'>
+
+      <div class="flags">
+      {% for cd in draft.creators %}
+        <div class="flag" style="grid-template-columns:1fr">
+          <div class="rule">
+            <span>Creator {{ loop.index }}</span>
+            <span class="mono">
+              {% if cd.creator.existing_creator_id %}@{{ cd.creator.handle }} (existing){% else %}@{{ cd.creator.handle or '(handle not set)' }} (new){% endif %}
+            </span>
+          </div>
+          {% if cd.warnings %}
+          <div class="estflag" style="margin:0 0 10px">
+            <b>CHECK</b>
+            <span>{% for w in cd.warnings %}{{ w.message }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+          </div>
+          {% endif %}
+          {% for d in cd.deliverables %}
+          <p class="muted" style="margin:4px 0">
+            {{ d.format | capitalize }} &middot; {{ d.deal_type | replace('_', ' ') | capitalize }}
+            {% if d.fee %}&middot; ₹{{ "{:,}".format(d.fee | int) }}{% endif %}
+            {% if d.barter_value %}&middot; barter ₹{{ "{:,}".format(d.barter_value | int) }}{% endif %}
+            {% if d.min_reach %}&middot; min reach {{ "{:,}".format(d.min_reach) }}{% elif d.min_reach_explicitly_none %}&middot; no reach guarantee{% endif %}
+            &middot; due day {{ d.due_day }}
+          </p>
+          {% if d.preview_notes %}
+          <div class="contractnote" style="margin:6px 0">
+            <b>DEAL</b>
+            <span>{% for n in d.preview_notes %}{{ n.requirement }}: {{ n.note }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      {% endfor %}
+      </div>
+
+      <div class="row" style="padding:16px 22px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn approve" type="submit" name="action" value="approve" {% if blocking_errors %}disabled{% endif %}>Confirm &amp; create campaign</button>
+        <a class="btn" href="/campaigns/new">Back to edit</a>
+        <button class="btn ghost" type="submit" name="action" value="dismiss">Discard</button>
+      </div>
+    </form>
+  </article>
+{% endif %}
+</div>

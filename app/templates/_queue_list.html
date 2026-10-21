@@ -37,6 +37,13 @@
     </div>
     {% endif %}
 
+    {% if card.data_notes %}
+    <div class="datanote">
+      <b>DATA</b>
+      <span>{% for n in card.data_notes %}{{ n.note }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+
     {% if card.opportunity_note %}
     <div class="oppbox">
       <div class="t">

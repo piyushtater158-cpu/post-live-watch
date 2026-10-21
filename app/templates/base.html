@@ -15,24 +15,36 @@
     <a href="/queue" {% if active_nav == 'queue' %}aria-current="page"{% endif %}>Flag Queue</a>
     <a href="/creators" {% if active_nav == 'creators' %}aria-current="page"{% endif %}>Creators</a>
     <a href="/intake" {% if active_nav == 'intake' %}aria-current="page"{% endif %}>New Deal</a>
+    <a href="/campaigns" {% if active_nav == 'campaigns' %}aria-current="page"{% endif %}>Campaigns</a>
     <a href="/report" {% if active_nav == 'report' %}aria-current="page"{% endif %}>Brand Report</a>
     <a href="/decisions" {% if active_nav == 'decisions' %}aria-current="page"{% endif %}>Decision Log</a>
   </nav>
   <div class="controls">
+    {% if campaigns %}
+    <form method="post" action="/campaigns/select" style="display:contents">
+      <select name="campaign_id" aria-label="Active campaign" onchange="this.form.submit()">
+        {% for c in campaigns %}<option value="{{ c.id }}" {% if c.id == campaign_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </form>
+    {% endif %}
     <form method="post" action="/settings/ai-toggle" style="display:contents">
       <button class="ctl ai" type="submit" aria-pressed="{{ 'true' if ai_enabled else 'false' }}">AI <b>{{ 'ON' if ai_enabled else 'OFF' }}</b></button>
     </form>
     <div class="day" aria-label="Campaign day {{ current_day }} of {{ duration_days }}">
       <span class="mono">Day {{ current_day }}/{{ duration_days }}</span>
       <span class="pips" aria-hidden="true">{% for i in range(duration_days) %}<i{% if i < current_day %} class="on"{% endif %}></i>{% endfor %}</span>
+      {% if clock_mode == 'live' %}<span class="mono" title="Day is derived from the campaign's start date, not the simulator">Live clock</span>{% endif %}
     </div>
+    {# The simulator only moves a SIMULATED campaign's day — a live-clock campaign's
+       day already tracks wall-clock time and has no button to push (app/actions.py:
+       advance_day/reset_day raise rather than silently reinterpreting it). #}
     <form method="post" action="/simulate/advance-day" style="display:contents">
-      <button class="ctl primary" type="submit" {% if current_day >= duration_days %}disabled{% endif %}>Advance day
+      <button class="ctl primary" type="submit" {% if clock_mode == 'live' or current_day >= duration_days %}disabled{% endif %}>Advance day
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 9 6l-6 4.5z" fill="currentColor"/></svg>
       </button>
     </form>
     <form method="post" action="/simulate/reset-day" style="display:contents" onsubmit="return confirm('Reset the campaign to day 1? This clears today\'s state.')">
-      <button class="ctl" type="submit">Reset to day 1</button>
+      <button class="ctl" type="submit" {% if clock_mode == 'live' %}disabled{% endif %}>Reset to day 1</button>
     </form>
   </div>
 </header>

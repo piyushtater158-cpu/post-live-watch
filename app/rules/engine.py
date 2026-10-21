@@ -25,6 +25,27 @@ def _status_for_severity(max_severity: int, t: dict) -> str:
     return "OK"
 
 
+def _data_notes(ctx) -> list[dict]:
+    """Deliberately parallel to ctx.contract_notes: that surfaces a negotiated
+    term that quietly changes what's required; this surfaces a data-source gap
+    that quietly changes what the engine can check. Only fires when a snapshot
+    EXISTS but its source never carries reach (the public metrics tier) — a
+    deliverable with no snapshot at all is "not posted yet," rule_1's concern,
+    not a data-availability note."""
+    notes = []
+    if ctx.latest_snapshot is not None and not ctx.reach_known:
+        notes.append({
+            "type": "reach_unavailable",
+            "source": ctx.reach_source,
+            "note": (
+                "Reach unavailable — no paid-partnership label on this post, so Instagram "
+                "returns likes and comments only. Rules 5 (Underperforming) and 12 (Viral "
+                "winner) cannot run for it."
+            ),
+        })
+    return notes
+
+
 def evaluate_post(conn: sqlite3.Connection, post_id: int, current_day: int, thresholds: dict | None = None) -> dict:
     t = thresholds or load_thresholds()
     ctx = load_post_context(conn, post_id, current_day)
@@ -54,6 +75,7 @@ def evaluate_post(conn: sqlite3.Connection, post_id: int, current_day: int, thre
         "deal_type": ctx.deal_type,
         "min_reach": ctx.min_reach,
         "contract_notes": ctx.contract_notes,
+        "data_notes": _data_notes(ctx),
         "current_day": current_day,
     }
 

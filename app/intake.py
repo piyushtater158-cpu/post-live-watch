@@ -44,8 +44,11 @@ class IntakeValidationError(Exception):
         super().__init__("; ".join(e["message"] for e in errors))
 
 
-def campaign_row(conn: sqlite3.Connection, campaign_id: int = 1) -> dict:
-    return dict(conn.execute("SELECT * FROM campaigns WHERE id = ?", (campaign_id,)).fetchone())
+def campaign_row(conn: sqlite3.Connection, campaign_id: int) -> dict:
+    row = conn.execute("SELECT * FROM campaigns WHERE id = ?", (campaign_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"no campaign with id {campaign_id}")
+    return dict(row)
 
 
 def known_handles(conn: sqlite3.Connection) -> list[str]:
@@ -335,10 +338,71 @@ def validate_draft(draft: dict, campaign_row: dict, thresholds: dict) -> list[di
     return errors
 
 
-def commit_intake(conn: sqlite3.Connection, draft: dict, campaign_row: dict, thresholds: dict,
-                   campaign_id: int = 1) -> dict:
-    """The single transactional writer. Re-validates inside the transaction
-    (a handle can collide, or a tampered form can arrive, between preview and
+def _write_intake(conn: sqlite3.Connection, draft: dict, campaign_row: dict) -> dict:
+    """The actual INSERTs for one creator + their deliverables, with no
+    validation and no commit/rollback of its own — the caller owns both. Split
+    out so app/campaign_intake.py:commit_campaign can write several creators
+    into a brand-new campaign inside ONE outer transaction (its own commit/
+    rollback spans the whole campaign, not just one creator) while
+    commit_intake below keeps committing immediately for the single-creator
+    deal-intake flow it has always served."""
+    c = draft["creator"]
+    if c.get("existing_creator_id"):
+        creator_id = c["existing_creator_id"]
+        created_creator = False
+    else:
+        conn.execute(
+            "INSERT INTO creators (handle, followers, tier, niche, avg_reach, avg_engagement_rate, metrics_source) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(handle) DO NOTHING",
+            (c["handle"], c["followers"], c["tier"], c["niche"], c["avg_reach"], c["avg_engagement_rate"], c["metrics_source"]),
+        )
+        row = conn.execute("SELECT id FROM creators WHERE handle = ?", (c["handle"],)).fetchone()
+        creator_id = row["id"]
+        created_creator = True  # best-effort; a true race lands as False-positive only in the return value, never in the data
+
+    deliverable_ids: list[int] = []
+    post_ids: list[int] = []
+    for d in draft["deliverables"]:
+        waived_notes = d.get("waived_notes") or {}
+        cur = conn.execute(
+            "INSERT INTO deliverables (campaign_id, creator_id, format, fee, promised_date, min_reach, "
+            "required_disclosure, required_tag, required_hashtag, requires_link_sticker, "
+            "deal_type, barter_value, bonus_threshold, bonus_amount, waived_notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (campaign_row["id"], creator_id, d["format"], d.get("fee"), resolve_due_date(campaign_row, d["due_day"]),
+             d.get("min_reach"), d.get("required_disclosure"), d.get("required_tag"), d.get("required_hashtag"),
+             d.get("requires_link_sticker"), d["deal_type"], d.get("barter_value"), d.get("bonus_threshold"),
+             d.get("bonus_amount"), json.dumps(waived_notes) if waived_notes else None),
+        )
+        did = cur.lastrowid
+        deliverable_ids.append(did)
+
+        pcur = conn.execute(
+            "INSERT INTO posts (deliverable_id, posted_at, caption, original_caption, caption_edited_at, "
+            "link_sticker_present, permalink, is_story, screenshot_uploaded, deleted_at_day, competitor_mentioned_day) "
+            "VALUES (?, NULL, NULL, NULL, NULL, 0, NULL, ?, 0, NULL, NULL)",
+            (did, int(d["format"] == "story")),
+        )
+        post_ids.append(pcur.lastrowid)
+
+        conn.execute(
+            "INSERT INTO decisions (flag_id, post_id, action, message_text, created_at, source) "
+            "VALUES (NULL, ?, 'approve', ?, ?, 'intake')",
+            (pcur.lastrowid, draft.get("brief_text", ""), datetime.now().isoformat()),
+        )
+
+    return {"creator_id": creator_id, "created_creator": created_creator,
+            "deliverable_ids": deliverable_ids, "post_ids": post_ids}
+
+
+def commit_intake(conn: sqlite3.Connection, draft: dict, campaign_row: dict, thresholds: dict) -> dict:
+    """The single transactional writer for the single-creator deal-intake flow.
+    campaign_id is read from campaign_row["id"] rather than taken as a separate
+    argument — campaign_row always comes from this module's own campaign_row()
+    lookup, so there is exactly one source of truth for which campaign a draft
+    commits into; a caller can no longer pass a draft resolved against one
+    campaign while writing into another by mistake.
+    Re-validates inside the transaction (a handle can collide, or a tampered form can arrive, between preview and
     confirm) and rolls back cleanly on any failure — this codebase otherwise
     only ever commits, so this discipline is new and deliberate."""
     blocking = [e for e in validate_draft(draft, campaign_row, thresholds) if e["blocking"]]
@@ -346,54 +410,9 @@ def commit_intake(conn: sqlite3.Connection, draft: dict, campaign_row: dict, thr
         raise IntakeValidationError(blocking)
 
     try:
-        c = draft["creator"]
-        if c.get("existing_creator_id"):
-            creator_id = c["existing_creator_id"]
-            created_creator = False
-        else:
-            conn.execute(
-                "INSERT INTO creators (handle, followers, tier, niche, avg_reach, avg_engagement_rate, metrics_source) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(handle) DO NOTHING",
-                (c["handle"], c["followers"], c["tier"], c["niche"], c["avg_reach"], c["avg_engagement_rate"], c["metrics_source"]),
-            )
-            row = conn.execute("SELECT id FROM creators WHERE handle = ?", (c["handle"],)).fetchone()
-            creator_id = row["id"]
-            created_creator = True  # best-effort; a true race lands as False-positive only in the return value, never in the data
-
-        deliverable_ids: list[int] = []
-        post_ids: list[int] = []
-        for d in draft["deliverables"]:
-            waived_notes = d.get("waived_notes") or {}
-            cur = conn.execute(
-                "INSERT INTO deliverables (campaign_id, creator_id, format, fee, promised_date, min_reach, "
-                "required_disclosure, required_tag, required_hashtag, requires_link_sticker, "
-                "deal_type, barter_value, bonus_threshold, bonus_amount, waived_notes) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (campaign_id, creator_id, d["format"], d.get("fee"), resolve_due_date(campaign_row, d["due_day"]),
-                 d.get("min_reach"), d.get("required_disclosure"), d.get("required_tag"), d.get("required_hashtag"),
-                 d.get("requires_link_sticker"), d["deal_type"], d.get("barter_value"), d.get("bonus_threshold"),
-                 d.get("bonus_amount"), json.dumps(waived_notes) if waived_notes else None),
-            )
-            did = cur.lastrowid
-            deliverable_ids.append(did)
-
-            pcur = conn.execute(
-                "INSERT INTO posts (deliverable_id, posted_at, caption, original_caption, caption_edited_at, "
-                "link_sticker_present, permalink, is_story, screenshot_uploaded, deleted_at_day, competitor_mentioned_day) "
-                "VALUES (?, NULL, NULL, NULL, NULL, 0, NULL, ?, 0, NULL, NULL)",
-                (did, int(d["format"] == "story")),
-            )
-            post_ids.append(pcur.lastrowid)
-
-            conn.execute(
-                "INSERT INTO decisions (flag_id, post_id, action, message_text, created_at, source) "
-                "VALUES (NULL, ?, 'approve', ?, ?, 'intake')",
-                (pcur.lastrowid, draft.get("brief_text", ""), datetime.now().isoformat()),
-            )
-
+        result = _write_intake(conn, draft, campaign_row)
         conn.commit()
-        return {"creator_id": creator_id, "created_creator": created_creator,
-                "deliverable_ids": deliverable_ids, "post_ids": post_ids}
+        return result
     except Exception:
         conn.rollback()
         raise

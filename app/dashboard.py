@@ -13,8 +13,11 @@ from app.rules.engine import evaluate_campaign, evaluate_post
 STATUS_ORDER = {"Act now": 0, "Needs a look": 1, "OK": 2}
 
 
-def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
-    results = evaluate_campaign(conn, campaign_id=1, current_day=current_day)
+def get_overview(conn: sqlite3.Connection, campaign_id: int, current_day: int) -> dict:
+    duration_days = conn.execute(
+        "SELECT duration_days FROM campaigns WHERE id = ?", (campaign_id,)
+    ).fetchone()["duration_days"]
+    results = evaluate_campaign(conn, campaign_id=campaign_id, current_day=current_day)
 
     # A deliverable intaken with a future due_day (app/intake.py) hasn't started
     # yet — it must not count in "posts due today" or drag the live-percentage
@@ -33,6 +36,7 @@ def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
     total_reach = 0
     total_promised = 0
     guaranteed_count = 0  # deliverables that actually carry a reach guarantee (excludes barter/affiliate)
+    reach_unknown_count = 0  # due deliverables whose latest snapshot has no reach (public metrics tier)
     for r in due_results:
         # min_reach is resolved per-deal (app/rules/contract.py) — barter/affiliate
         # deliverables have none, and must not inflate the brand-facing promised figure.
@@ -43,7 +47,10 @@ def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
             "SELECT reach FROM post_snapshots WHERE post_id = ? AND day_number <= ? "
             "ORDER BY day_number DESC LIMIT 1", (r["post_id"], current_day),
         ).fetchone()
-        total_reach += latest["reach"] if latest else 0
+        if latest is None or latest["reach"] is None:
+            reach_unknown_count += 1
+        else:
+            total_reach += latest["reach"]
 
     by_status = {"Act now": 0, "Needs a look": 0, "OK": 0}
     opportunities = 0
@@ -53,13 +60,16 @@ def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
 
     rows = sorted(results, key=lambda r: (STATUS_ORDER[r["status"]], -r["max_severity"]))
     return {
+        "campaign_id": campaign_id,
         "current_day": current_day,
-        "duration_days": 7,
+        "duration_days": duration_days,
         "posts_live": posts_live,
         "total_due": total_due,
         "total_reach": total_reach,
         "total_promised": total_promised,
         "guaranteed_count": guaranteed_count,
+        "reach_known_count": total_due - reach_unknown_count,
+        "reach_unknown_count": reach_unknown_count,
         "posts_live_pct": round(100 * posts_live / total_due) if total_due else 0,
         "by_status": by_status,
         "opportunities": opportunities,
@@ -67,15 +77,17 @@ def get_overview(conn: sqlite3.Connection, current_day: int) -> dict:
     }
 
 
-def _creator_deliverables(conn: sqlite3.Connection, creator_id: int, current_day: int) -> list[dict]:
-    """Every one of a creator's deliverables in the current campaign, evaluated —
-    a real deal is often a package ("1 reel + 2 stories"), so this fetches ALL of
-    them rather than picking an arbitrary one via .fetchone() the way the single-
-    deliverable assumption used to."""
+def _creator_deliverables(conn: sqlite3.Connection, campaign_id: int, creator_id: int, current_day: int) -> list[dict]:
+    """Every one of a creator's deliverables in ONE campaign, evaluated — a real
+    deal is often a package ("1 reel + 2 stories"), so this fetches ALL of them
+    rather than picking an arbitrary one via .fetchone() the way the single-
+    deliverable assumption used to. Filtered to campaign_id: a creator signed
+    across multiple campaigns must not have another campaign's posts silently
+    folded into this one's rollup or reliability score."""
     post_rows = conn.execute(
         "SELECT p.id FROM posts p JOIN deliverables d ON d.id = p.deliverable_id "
-        "WHERE d.creator_id = ? ORDER BY d.promised_date, p.id",
-        (creator_id,),
+        "WHERE d.creator_id = ? AND d.campaign_id = ? ORDER BY d.promised_date, p.id",
+        (creator_id, campaign_id),
     ).fetchall()
     results = [evaluate_post(conn, r["id"], current_day) for r in post_rows]
 
@@ -106,8 +118,12 @@ def _rollup_campaign_status(deliverables: list[dict]) -> dict | None:
     return {**worst, "delivered": delivered, "total_deliverables": len(deliverables)}
 
 
-def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool) -> list[dict]:
-    results = evaluate_campaign(conn, campaign_id=1, current_day=current_day)
+def get_flag_queue(conn: sqlite3.Connection, campaign_id: int, current_day: int, ai_enabled: bool) -> list[dict]:
+    brand_name = conn.execute(
+        "SELECT b.name FROM campaigns camp JOIN brands b ON b.id = camp.brand_id WHERE camp.id = ?",
+        (campaign_id,),
+    ).fetchone()["name"]
+    results = evaluate_campaign(conn, campaign_id=campaign_id, current_day=current_day)
     flagged = [r for r in results if r["status"] != "OK" or r["opportunities"]]
     flagged.sort(key=lambda r: (STATUS_ORDER[r["status"]], -r["max_severity"]))
 
@@ -143,7 +159,7 @@ def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool)
         suggested_message = None
         if enriched_flags:
             top = enriched_flags[0]
-            suggested_message = ai.generate_nudge_message(ai_enabled, cinfo["handle"], top["rule_name"], top["reason"])
+            suggested_message = ai.generate_nudge_message(ai_enabled, cinfo["handle"], top["rule_name"], top["reason"], brand_name)
 
         opportunity_note = None
         if r["opportunities"]:
@@ -171,42 +187,69 @@ def get_flag_queue(conn: sqlite3.Connection, current_day: int, ai_enabled: bool)
     return cards
 
 
-def get_creator_package(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict:
-    """The rolled-up status plus every deliverable for one creator — the
-    shared shape both get_creator_profile and the deal-intake confirmation
-    screen (app/main.py's /intake/confirm) use to show the new rows flowing
-    through the already-shipped rollup machinery immediately."""
-    deliverables = _creator_deliverables(conn, creator_id, current_day)
+def get_creator_package(conn: sqlite3.Connection, campaign_id: int, creator_id: int, current_day: int) -> dict:
+    """The rolled-up status plus every deliverable for one creator IN ONE
+    CAMPAIGN — the shared shape both get_creator_profile and the deal-intake
+    confirmation screen (app/main.py's /intake/confirm) use to show the new
+    rows flowing through the already-shipped rollup machinery immediately."""
+    deliverables = _creator_deliverables(conn, campaign_id, creator_id, current_day)
     return {"current_campaign": _rollup_campaign_status(deliverables), "current_deliverables": deliverables}
 
 
-def get_creator_list(conn: sqlite3.Connection, current_day: int) -> list[dict]:
+def get_creator_list(conn: sqlite3.Connection, campaign_id: int, current_day: int) -> list[dict]:
+    """The full creator roster — shared across every campaign, so switching
+    campaigns never hides a creator — each enriched with their rollup for the
+    ONE selected campaign. A creator not enrolled there shows current_campaign
+    = None, same as "no deliverables yet" always has."""
     creators = []
     for r in conn.execute("SELECT id, handle, tier, niche, metrics_source FROM creators ORDER BY handle").fetchall():
-        deliverables = _creator_deliverables(conn, r["id"], current_day)
+        deliverables = _creator_deliverables(conn, campaign_id, r["id"], current_day)
         creators.append({
             **dict(r),
-            "reliability": compute_reliability(conn, r["id"], current_day),
+            "reliability": compute_reliability(conn, campaign_id, r["id"], current_day),
             "current_campaign": _rollup_campaign_status(deliverables),
         })
     creators.sort(key=lambda c: -(c["reliability"]["score"] if c["reliability"]["score"] is not None else -1))
     return creators
 
 
-def get_creator_profile(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict:
+def _other_campaigns(conn: sqlite3.Connection, campaign_id: int, creator_id: int, current_day: int) -> list[dict]:
+    """A creator's rolled-up status in every OTHER active campaign they're
+    enrolled in — listed on the profile so excluding them from the selected
+    campaign's own rollup (the scoping fix) doesn't read as hiding work."""
+    other_ids = [
+        row["id"] for row in conn.execute(
+            "SELECT DISTINCT camp.id FROM campaigns camp "
+            "JOIN deliverables d ON d.campaign_id = camp.id "
+            "WHERE d.creator_id = ? AND camp.id != ? AND camp.status = 'active' ORDER BY camp.id",
+            (creator_id, campaign_id),
+        ).fetchall()
+    ]
+    out = []
+    for other_id in other_ids:
+        name = conn.execute("SELECT name FROM campaigns WHERE id = ?", (other_id,)).fetchone()["name"]
+        deliverables = _creator_deliverables(conn, other_id, creator_id, current_day)
+        rollup = _rollup_campaign_status(deliverables)
+        out.append({"campaign_id": other_id, "campaign_name": name, "status": rollup["status"] if rollup else None})
+    return out
+
+
+def get_creator_profile(conn: sqlite3.Connection, campaign_id: int, creator_id: int, current_day: int) -> dict:
     creator = dict(conn.execute("SELECT * FROM creators WHERE id = ?", (creator_id,)).fetchone())
-    reliability = compute_reliability(conn, creator_id, current_day)
+    reliability = compute_reliability(conn, campaign_id, creator_id, current_day)
 
     return {
         "creator": creator,
         "reliability": reliability,
-        **get_creator_package(conn, creator_id, current_day),
+        "other_campaigns": _other_campaigns(conn, campaign_id, creator_id, current_day),
+        **get_creator_package(conn, campaign_id, creator_id, current_day),
     }
 
 
-def get_brand_report(conn: sqlite3.Connection, current_day: int, ai_enabled: bool) -> dict:
-    overview = get_overview(conn, current_day)
-    results = evaluate_campaign(conn, campaign_id=1, current_day=current_day)
+def get_brand_report(conn: sqlite3.Connection, campaign_id: int, current_day: int, ai_enabled: bool) -> dict:
+    campaign_name = conn.execute("SELECT name FROM campaigns WHERE id = ?", (campaign_id,)).fetchone()["name"]
+    overview = get_overview(conn, campaign_id, current_day)
+    results = evaluate_campaign(conn, campaign_id=campaign_id, current_day=current_day)
 
     highlights = []
     issues = []
@@ -219,6 +262,6 @@ def get_brand_report(conn: sqlite3.Connection, current_day: int, ai_enabled: boo
     text = ai.generate_brand_daily_report(
         ai_enabled, current_day, overview["duration_days"], overview["posts_live"], overview["total_due"],
         overview["total_reach"], overview["total_promised"], overview["by_status"]["Act now"],
-        overview["by_status"]["Needs a look"], overview["by_status"]["OK"], highlights, issues,
+        overview["by_status"]["Needs a look"], overview["by_status"]["OK"], highlights, issues, campaign_name,
     )
     return {"overview": overview, "highlights": highlights, "issues": issues, "text": text}

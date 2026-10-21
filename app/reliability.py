@@ -27,14 +27,17 @@ PERFORMANCE_CAP = 1.2
 FLAGS_PER_CAMPAIGN_CAP = 3
 
 
-def _current_campaign_point(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict | None:
-    """Aggregates across EVERY deliverable a creator has in the current campaign —
-    a real deal is often a package ("1 reel + 2 stories"), not a single post, so
-    this can no longer pick an arbitrary one via .fetchone()."""
+def _current_campaign_point(conn: sqlite3.Connection, campaign_id: int, creator_id: int, current_day: int) -> dict | None:
+    """Aggregates across EVERY deliverable a creator has in ONE campaign — a real
+    deal is often a package ("1 reel + 2 stories"), not a single post, so this can
+    no longer pick an arbitrary one via .fetchone(). Filtered to campaign_id: a
+    creator signed across multiple campaigns must not have one campaign's flags
+    and performance silently blended into another's reliability score."""
     post_rows = conn.execute(
         "SELECT p.id, p.posted_at, d.min_reach FROM posts p "
-        "JOIN deliverables d ON d.id = p.deliverable_id WHERE d.creator_id = ? ORDER BY p.id",
-        (creator_id,),
+        "JOIN deliverables d ON d.id = p.deliverable_id "
+        "WHERE d.creator_id = ? AND d.campaign_id = ? ORDER BY p.id",
+        (creator_id, campaign_id),
     ).fetchall()
     if not post_rows:
         return None
@@ -68,8 +71,12 @@ def _current_campaign_point(conn: sqlite3.Connection, creator_id: int, current_d
                 "ORDER BY day_number DESC LIMIT 1",
                 (post_row["id"], current_day),
             ).fetchone()
-            reach = latest["reach"] if latest else 0
-            performance_ratios.append(reach / post_row["min_reach"])
+            # A missing snapshot and a snapshot with no reach (the public metrics
+            # tier never returns it) are both "unknown", not "zero" — scoring an
+            # unmeasured post as a 0x performer would be a false negative exactly
+            # like treating a barter deal's absent min_reach as a 0x would be.
+            if latest is not None and latest["reach"] is not None:
+                performance_ratios.append(latest["reach"] / post_row["min_reach"])
 
     if due_count == 0:
         return None
@@ -83,7 +90,7 @@ def _current_campaign_point(conn: sqlite3.Connection, creator_id: int, current_d
     }
 
 
-def compute_reliability(conn: sqlite3.Connection, creator_id: int, current_day: int) -> dict:
+def compute_reliability(conn: sqlite3.Connection, campaign_id: int, creator_id: int, current_day: int) -> dict:
     historical = [
         dict(r)
         for r in conn.execute(
@@ -102,7 +109,7 @@ def compute_reliability(conn: sqlite3.Connection, creator_id: int, current_day: 
         for h in historical
     ]
 
-    current = _current_campaign_point(conn, creator_id, current_day)
+    current = _current_campaign_point(conn, campaign_id, creator_id, current_day)
     if current is not None:
         points.append(current)
 

@@ -64,6 +64,23 @@ class PostContext:
     def previous_snapshot(self) -> dict | None:
         return self.snapshots[-2] if len(self.snapshots) >= 2 else None
 
+    @property
+    def reach_known(self) -> bool:
+        """False whenever a snapshot exists but carries no reach figure — the
+        public (business_discovery) metrics tier's shape, which never includes
+        reach. Distinct from 'not posted yet' (no snapshot at all): that's
+        rule_1's concern, not a data-availability note. rule_5/rule_12 read
+        this to skip cleanly rather than treat a missing number as 0."""
+        latest = self.latest_snapshot
+        return latest is not None and latest["reach"] is not None
+
+    @property
+    def reach_source(self) -> str | None:
+        """'seeded' | 'branded_content' | 'public' | 'am_entered' | None (no
+        snapshot yet) — which metrics tier produced the latest snapshot."""
+        latest = self.latest_snapshot
+        return latest["source"] if latest is not None else None
+
 
 def load_post_context(conn: sqlite3.Connection, post_id: int, current_day: int) -> PostContext:
     row = conn.execute(
