@@ -41,7 +41,7 @@ export default function Overview() {
       <div className="head">
         <div className="titleblock">
           <p className="eyebrow">Campaign overview</p>
-          <h1>GlowLeaf Vitamin C Serum Launch — Campaign Overview</h1>
+          <h1>{state?.campaign_name} — Campaign Overview</h1>
         </div>
         {data && (
           <p className="meta mono">

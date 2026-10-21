@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { Field } from "../components/Field";
 import { Chip, ContractNotes, ErrorBox } from "../components/Status";
 import { useAppState, usePageData } from "../state";
 import type { CampaignDefaults, DealType, DraftDeliverable, Format, IntakeDraft, IntakeResponse } from "../types";
@@ -126,15 +127,6 @@ function toDraft(form: DraftForm, base: IntakeDraft, metricsTouched: boolean): u
       };
     }),
   };
-}
-
-function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
-  return (
-    <div className="field" style={wide ? { gridColumn: "1/-1" } : undefined}>
-      <label>{label}</label>
-      {children}
-    </div>
-  );
 }
 
 function Preview({
@@ -446,7 +438,8 @@ function Created({ response, onReset }: { response: IntakeResponse; onReset: () 
 }
 
 export default function Intake() {
-  const { state } = useAppState();
+  const { state, setState } = useAppState();
+  const [switching, setSwitching] = useState(false);
   const defaults = usePageData(api.intakeDefaults);
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
@@ -460,6 +453,21 @@ export default function Intake() {
   }, []);
 
   const campaign: CampaignDefaults | undefined = defaults.data?.campaign;
+
+  // A draft is validated against one campaign's terms and due-day range — drop it when the target changes.
+  useEffect(() => {
+    setResponse(null);
+    setDismissed(false);
+  }, [state?.campaign_id]);
+
+  const switchCampaign = (id: number) => {
+    setSwitching(true);
+    api
+      .selectCampaign(id)
+      .then(setState)
+      .catch((e: Error) => alert(`That didn't go through: ${e.message}`))
+      .finally(() => setSwitching(false));
+  };
 
   const draftIt = () => {
     setBusy(true);
@@ -491,14 +499,37 @@ export default function Intake() {
       </div>
 
       {defaults.error && <ErrorBox message={defaults.error} onRetry={defaults.reload} />}
-      {campaign && (
-        <div className="panel">
-          <span className="lbl">Campaign defaults</span>
-          <p>
-            tag {campaign.required_tag} · hashtag {campaign.required_hashtag} · disclosure{" "}
-            {campaign.required_disclosure.split("|").join(" or ")} · link sticker{" "}
-            {campaign.requires_link_sticker ? "required on stories" : "not required"}
-          </p>
+      {state && state.campaigns.length > 0 && (
+        <div className="panel" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+          <div className="row">
+            <label className="lbl" htmlFor="intake-campaign">
+              Adding to campaign
+            </label>
+            <select
+              id="intake-campaign"
+              style={{ width: "auto", flex: 1, minWidth: 220 }}
+              value={state.campaign_id ?? ""}
+              disabled={switching || busy}
+              onChange={(e) => switchCampaign(Number(e.target.value))}
+            >
+              {state.campaigns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} · {c.brand_name}
+                </option>
+              ))}
+            </select>
+            <Link className="btn ghost" to="/campaigns/new">
+              New campaign
+            </Link>
+          </div>
+          {campaign && (
+            <p>
+              Campaign terms: tag {campaign.required_tag || "—"} · hashtag {campaign.required_hashtag || "—"} · disclosure{" "}
+              {campaign.required_disclosure.split("|").join(" or ")} · link sticker{" "}
+              {campaign.requires_link_sticker ? "required on stories" : "not required"} · day {state.current_day} of{" "}
+              {state.duration_days}
+            </p>
+          )}
         </div>
       )}
 

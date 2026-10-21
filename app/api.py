@@ -84,6 +84,7 @@ class CampaignEditIn(BaseModel):
     requires_link_sticker: bool = True
     duration_days: int
     banned_claims: list[str] = Field(default_factory=list)
+    metrics_provider: Literal["seeded", "manual", "instagram"] | None = None  # None = leave unchanged
 
 
 class IntakeConfirmIn(BaseModel):
@@ -189,6 +190,17 @@ def campaigns_list(conn: sqlite3.Connection = Depends(get_db)):
     return {"campaigns": actions.list_campaigns(conn)}
 
 
+@router.get("/campaign-defaults")
+def campaign_defaults(conn: sqlite3.Connection = Depends(get_db)):
+    cfg = load_thresholds()["campaign_intake"]
+    return {
+        "brands": campaign_intake.list_brands(conn),
+        "default_duration_days": cfg["default_duration_days"],
+        "max_duration_days": cfg["max_duration_days"],
+        "default_required_disclosure": cfg["default_required_disclosure"],
+    }
+
+
 @router.post("/campaigns/select")
 def campaigns_select(body: CampaignSelectIn, conn: sqlite3.Connection = Depends(get_db)):
     try:
@@ -272,6 +284,49 @@ def creators_research(handle: str):
     if info is None:
         raise HTTPException(status_code=404, detail=f"Could not look up @{handle} — private, not found, or not a professional account.")
     return {"handle": handle, **info}
+
+
+@router.get("/integrations/instagram")
+def instagram_status(conn: sqlite3.Connection = Depends(get_db)):
+    """Connection status for the Instagram screen. Reports WHICH credentials
+    are missing, never their values."""
+    from app.metrics import instagram
+    from app.metrics.sync import recent_fetch_runs
+    missing = instagram.missing_env()
+    return {
+        "configured": not missing,
+        "missing_env": missing,
+        "required_env": list(instagram.REQUIRED_ENV),
+        "graph_version": instagram.graph_version(),
+        "instagram_campaigns": [c for c in actions.list_campaigns(conn) if c["metrics_provider"] == "instagram"],
+        "recent_runs": recent_fetch_runs(conn),
+    }
+
+
+@router.post("/integrations/instagram/test")
+def instagram_test():
+    from app.metrics.base import NotConfigured
+    from app.metrics.instagram import InstagramProvider
+    try:
+        provider = InstagramProvider()
+    except NotConfigured as exc:
+        return {"ok": False, "error": str(exc), "account": None}
+    try:
+        return {"ok": True, "error": None, "account": provider.check_connection()}
+    except Exception as exc:
+        return {"ok": False, "error": _meta_error_message(exc), "account": None}
+
+
+def _meta_error_message(exc: Exception) -> str:
+    """Meta's own error text (e.g. 'Error validating access token') when the
+    Graph API returned one, so the AM sees what to fix rather than a bare 400."""
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            return response.json()["error"]["message"]
+        except Exception:
+            return f"Meta returned HTTP {response.status_code}"
+    return str(exc)
 
 
 def _campaign_intake_response(draft: dict, blocking: list[dict], result: dict | None = None) -> dict:

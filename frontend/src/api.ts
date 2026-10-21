@@ -2,6 +2,17 @@ import type {
   AppState,
   BrandReport,
   CampaignDefaults,
+  CampaignEditIn,
+  CampaignFieldsIn,
+  CampaignFormDefaults,
+  CampaignIntakeResponse,
+  CampaignRow,
+  CampaignSummary,
+  ClockMode,
+  CreatorResearch,
+  InstagramStatus,
+  InstagramTest,
+  SyncResult,
   IntakeDraft,
   IntakeResponse,
   CreatorProfile,
@@ -48,7 +59,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new ApiError(res.status, body?.detail ? String(body.detail) : `Request failed (${res.status})`);
+      const detail = Array.isArray(body?.detail)
+        ? body.detail.map((e: { message?: string; msg?: string }) => e.message ?? e.msg).join(" · ")
+        : body?.detail;
+      throw new ApiError(res.status, detail ? String(detail) : `Request failed (${res.status})`);
     }
     return (await res.json()) as T;
   } finally {
@@ -77,4 +91,18 @@ export const api = {
   intakeConfirm: (body: { action: "approve" | "edit"; original_draft: IntakeDraft; draft?: unknown }) =>
     post<IntakeResponse>("/intake/confirm", body),
   intakeDismiss: () => post<{ dismissed: true }>("/intake/confirm", { action: "dismiss" }),
+  campaigns: () => request<{ campaigns: CampaignSummary[] }>("/campaigns"),
+  campaign: (id: number) => request<CampaignRow>(`/campaigns/${id}`),
+  campaignDefaults: () => request<CampaignFormDefaults>("/campaign-defaults"),
+  selectCampaign: (campaign_id: number) => post<AppState>("/campaigns/select", { campaign_id }),
+  setClock: (id: number, mode: ClockMode) => post<AppState>(`/campaigns/${id}/clock`, { mode }),
+  editCampaign: (id: number, body: CampaignEditIn) => post<CampaignRow>(`/campaigns/${id}/edit`, body),
+  syncCampaign: (id: number) => post<SyncResult>(`/campaigns/${id}/sync`),
+  campaignParse: (campaign: CampaignFieldsIn, creators_brief_text: string) =>
+    post<CampaignIntakeResponse>("/campaigns/parse", { campaign, creators_brief_text }),
+  campaignConfirm: (original_draft: unknown) =>
+    post<CampaignIntakeResponse>("/campaigns/confirm", { action: "approve", original_draft }),
+  instagramStatus: () => request<InstagramStatus>("/integrations/instagram"),
+  instagramTest: () => post<InstagramTest>("/integrations/instagram/test"),
+  researchCreator: (handle: string) => request<CreatorResearch>(`/creators/research/${encodeURIComponent(handle)}`),
 };

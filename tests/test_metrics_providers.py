@@ -123,6 +123,18 @@ def test_resolve_creator_derives_measured_engagement_rate(configured_env, monkey
     assert len(info["recent_captions"]) == 2
 
 
+def test_resolve_ig_user_id_reads_business_discovery_id(configured_env, monkeypatch):
+    provider = InstagramProvider()
+    monkeypatch.setattr(provider, "_get", lambda path, params: {"business_discovery": {"id": "17900000000000099"}})
+    assert provider.resolve_ig_user_id("somecreator") == "17900000000000099"
+
+
+def test_resolve_ig_user_id_none_on_error(configured_env, monkeypatch):
+    provider = InstagramProvider()
+    monkeypatch.setattr(provider, "_get", lambda path, params: (_ for _ in ()).throw(RuntimeError("not found")))
+    assert provider.resolve_ig_user_id("ghost") is None
+
+
 def test_resolve_creator_returns_none_on_private_account(configured_env, monkeypatch):
     provider = InstagramProvider()
     monkeypatch.setattr(provider, "_get", lambda path, params: _load("business_discovery_private.json"))

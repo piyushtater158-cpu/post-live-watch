@@ -195,6 +195,26 @@ def test_unmatched_media_recorded_not_guessed(conn, synced_campaign):
     assert any(e.get("ig_media_id") == "media_2" for e in result["errors"])
 
 
+def test_missing_creator_ig_user_id_resolved_and_cached(conn, synced_campaign):
+    cid, creator_id = synced_campaign["campaign_id"], synced_campaign["creator_id"]
+    conn.execute("UPDATE creators SET ig_user_id = NULL WHERE id = ?", (creator_id,))
+    conn.commit()
+    seen_ids = []
+
+    class ResolvingProvider(FakeProvider):
+        def resolve_ig_user_id(self, handle):
+            return "17900000000000555" if handle == "synccreator" else None
+
+        def fetch_creator_media(self, creator_ig_user_id, creator_handle):
+            seen_ids.append(creator_ig_user_id)
+            return []
+
+    sync_campaign(conn, cid, ResolvingProvider({}))
+    assert seen_ids == ["17900000000000555"]  # branded-content tier gets the id on this same run
+    row = conn.execute("SELECT ig_user_id FROM creators WHERE id = ?", (creator_id,)).fetchone()
+    assert row["ig_user_id"] == "17900000000000555"
+
+
 def test_fetch_run_recorded(conn, synced_campaign):
     cid = synced_campaign["campaign_id"]
     sync_campaign(conn, cid, FakeProvider({}))

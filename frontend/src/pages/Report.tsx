@@ -8,11 +8,16 @@ export default function Report() {
   const { state, error: stateError, retry } = useAppState();
   const { data, error, reload } = usePageData(api.report);
 
+  const brand = state?.brand_name ?? "";
+
   useEffect(() => {
-    document.title = "GlowLeaf — Daily Report";
     document.body.classList.add("report");
     return () => document.body.classList.remove("report");
   }, []);
+
+  useEffect(() => {
+    document.title = `${brand} — Daily Report`;
+  }, [brand]);
 
   const failure = stateError ?? error;
 
@@ -32,7 +37,7 @@ export default function Report() {
               <path d="M5 19c0-8 5-14 15-14 0 10-6 15-14 15" />
               <path d="M5 19 13 11" />
             </svg>
-            GlowLeaf
+            {brand}
           </div>
           <span className="ro">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -44,10 +49,10 @@ export default function Report() {
         </div>
 
         <div className="titleblock" style={{ gap: 12 }}>
-          <h1>GlowLeaf — Daily Report</h1>
+          {state && <h1>{brand} — Daily Report</h1>}
           {state && (
             <p className="date">
-              Vitamin C Serum Launch · Day <span>{state.current_day}</span> of {state.duration_days}
+              {state.campaign_name} · Day <span>{state.current_day}</span> of {state.duration_days}
             </p>
           )}
         </div>
